@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Layers
 } from 'lucide-react';
 import type { UserRole, ToastMessage } from '../types';
 
@@ -77,54 +78,82 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row antialiased text-slate-900 font-sans">
-      {/* Mobile Header Bar */}
-      <div className="md:hidden no-print bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-            B
+      {/* Mobile Top App Bar Header (Stitch Spec) */}
+      <header className="md:hidden no-print fixed top-0 w-full z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="h-16 px-4 flex items-center justify-between gap-3">
+          {/* Left: Brand + Entity Pill */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex flex-col min-w-0 leading-tight">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold tracking-tight text-slate-900 truncate">OrderFlow Pro</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">ERP</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="text-xs font-medium text-slate-600 truncate">{businessName}</span>
+                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1 py-0.5 rounded leading-none">Active</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="font-bold text-sm tracking-tight">OrderFlow Pro</span>
-            <span className="text-[10px] text-slate-400 block">{businessName}</span>
+
+          {/* Right: Action Icons & Profile */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onOpenSearch}
+              aria-label="Global Search"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 active:scale-95 transition-all"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onToggleRole}
+              title={`Role: ${userRole === 'admin' ? 'Owner / Admin' : 'Staff'}`}
+              className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold ring-1 ring-slate-900/10 shadow-xs"
+            >
+              {userRole === 'admin' ? 'AD' : 'ST'}
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenSearch}
-            className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
+      </header>
 
       {/* Sidebar Navigation */}
       <aside
-        className={`no-print fixed inset-y-0 left-0 z-40 w-64 bg-slate-950 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out md:translate-x-0 md:static ${
+        className={`no-print fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out md:translate-x-0 md:static ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
-              B
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
+              <Layers className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-base tracking-tight text-white">OrderFlow Pro</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-slate-800 text-indigo-400 font-mono">ERP</span>
               </div>
-              <p className="text-[11px] font-medium text-indigo-400 tracking-wide uppercase">
+              <p className="text-[11px] font-medium text-emerald-400 tracking-wide flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 {businessName}
               </p>
             </div>
           </div>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Quick Create Button in Sidebar */}
@@ -253,13 +282,31 @@ export const Layout: React.FC<LayoutProps> = ({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Desktop Top Header Bar */}
-        <header className="no-print hidden md:flex h-14 bg-white border-b border-slate-200/80 px-6 items-center justify-between sticky top-0 z-30 shadow-2xs">
-          {/* Global Search Input Bar */}
+        {/* Desktop Top Header Bar matching Stitch */}
+        <header className="no-print hidden md:flex h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 items-center justify-between sticky top-0 z-30 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          {/* Left: Brand / Section Identity */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold tracking-tight text-slate-900">OrderFlow Pro</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">ERP</span>
+                <span className="flex items-center gap-1.5 ml-2 text-xs font-medium text-slate-600">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  {businessName}
+                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Active</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Center Search Input */}
           <div className="flex items-center gap-3 w-96">
             <button
               onClick={onOpenSearch}
-              className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-100 hover:bg-slate-150 border border-slate-200 rounded-lg text-xs text-slate-400 transition-colors cursor-pointer"
+              className="w-full flex items-center justify-between px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-xs text-slate-400 transition-colors cursor-pointer shadow-2xs"
             >
               <span className="flex items-center gap-2">
                 <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -272,39 +319,104 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Right Header Controls */}
-          <div className="flex items-center gap-4">
-            {/* Quick Actions Dropdown */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onQuickCreate('order')}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Order
-              </button>
-              <button
-                onClick={() => onQuickCreate('payment')}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                Record Payment
-              </button>
-            </div>
-
-            <div className="h-4 w-px bg-slate-200"></div>
-
-            {/* Business Status Badge */}
-            <div className="flex items-center gap-2 text-xs text-slate-600">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="font-medium text-slate-700">Barakkath Agencies Active</span>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onQuickCreate('order')}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Order
+            </button>
+            <button
+              onClick={() => onQuickCreate('payment')}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Record Payment
+            </button>
+            <div className="h-5 w-px bg-slate-200"></div>
+            <button
+              onClick={onToggleRole}
+              title={`Switch role (currently ${userRole === 'admin' ? 'Owner / Admin' : 'Staff'})`}
+              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200/70"
+            >
+              <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">
+                {userRole === 'admin' ? 'AD' : 'ST'}
+              </div>
+              <div className="text-left leading-tight hidden lg:block">
+                <p className="text-xs font-bold text-slate-800">{userRole === 'admin' ? 'Admin' : 'Staff'}</p>
+                <p className="text-[10px] text-slate-400 capitalize">{userRole}</p>
+              </div>
+            </button>
           </div>
         </header>
 
-        {/* View Content Body */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        {/* View Content Body with Mobile Top Header & Bottom Nav Clearance */}
+        <main className="flex-1 pt-20 md:pt-6 pb-24 md:pb-8 p-4 md:p-6 lg:p-8 overflow-y-auto">
           {children}
         </main>
+
+        {/* Mobile Fixed Bottom Navigation Tab Bar (Stitch Spec) */}
+        <nav className="md:hidden fixed bottom-0 w-full z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] no-print">
+          <div className="flex items-center justify-around h-16 px-1 max-w-lg mx-auto">
+            {/* Tab 1: Dashboard */}
+            <button
+              onClick={() => onSelectTab('dashboard')}
+              className={`flex flex-col items-center justify-center flex-1 h-full relative group transition-colors ${
+                currentTab === 'dashboard' ? 'text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">Dashboard</span>
+              {currentTab === 'dashboard' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 absolute bottom-1"></span>}
+            </button>
+
+            {/* Tab 2: Orders */}
+            <button
+              onClick={() => onSelectTab('orders')}
+              className={`flex flex-col items-center justify-center flex-1 h-full relative group transition-colors ${
+                currentTab === 'orders' ? 'text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <ShoppingCart className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">Orders</span>
+              {currentTab === 'orders' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 absolute bottom-1"></span>}
+            </button>
+
+            {/* Tab 3: Parties */}
+            <button
+              onClick={() => onSelectTab('parties')}
+              className={`flex flex-col items-center justify-center flex-1 h-full relative group transition-colors ${
+                currentTab === 'parties' ? 'text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">Parties</span>
+              {currentTab === 'parties' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 absolute bottom-1"></span>}
+            </button>
+
+            {/* Tab 4: Payments */}
+            <button
+              onClick={() => onSelectTab('payments')}
+              className={`flex flex-col items-center justify-center flex-1 h-full relative group transition-colors ${
+                currentTab === 'payments' ? 'text-indigo-600 font-semibold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <CreditCard className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">Payments</span>
+              {currentTab === 'payments' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 absolute bottom-1"></span>}
+            </button>
+
+            {/* Tab 5: More */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">More</span>
+            </button>
+          </div>
+        </nav>
       </div>
 
       {/* Floating Toast Notification Stack */}

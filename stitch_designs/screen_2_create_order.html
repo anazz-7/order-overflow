@@ -1,0 +1,422 @@
+<!DOCTYPE html><html class="h-full bg-slate-50 antialiased" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<meta content="mobile_tab" name="shell-type">
+<title>OrderFlow Pro — Wholesale Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#312e81',
+            }
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03)',
+            'subtle': '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+            'float': '0 8px 24px -4px rgba(79, 70, 229, 0.22), 0 4px 8px -2px rgba(15, 23, 42, 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    @layer base {
+      html, body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        overscroll-behavior-y: none;
+        -webkit-tap-highlight-color: transparent;
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+      }
+      .pb-safe {
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+      }
+      .pt-safe {
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+    }
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-[#f8fafc] font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+<!-- Premium Top App Bar Header -->
+<header class="fixed top-0 w-full z-50 pt-safe bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+<div class="h-16 px-4 flex items-center justify-between gap-3">
+<!-- Left: Brand + Entity Pill -->
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-700 to-brand-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+<span class="material-symbols-outlined text-[20px]">layers</span>
+</div>
+<div class="flex flex-col min-w-0 leading-tight">
+<div class="flex items-center gap-1.5">
+<span class="text-sm font-bold tracking-tight text-slate-900 truncate">OrderFlow Pro</span>
+<span class="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">ERP</span>
+</div>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+<span class="text-xs font-medium text-slate-600 truncate">Barakkath Agencies</span>
+<span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1 py-0.5 rounded leading-none">Active</span>
+</div>
+</div>
+</div>
+<!-- Right: Action Icons & Profile -->
+<div class="flex items-center gap-1 shrink-0">
+<button aria-label="Global Search" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</button>
+<button aria-label="Notifications" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 active:scale-95 transition-all relative" type="button">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+</button>
+<div class="h-4 w-px bg-slate-200 mx-0.5"></div>
+<button class="flex items-center gap-1.5 pl-1 pr-1.5 py-1 rounded-full hover:bg-slate-100 transition-colors" type="button">
+<div class="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold ring-1 ring-slate-900/10">
+            BA
+          </div>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Scroll Area -->
+<main class="flex-1 w-full pt-20 pb-36 px-4 max-w-lg mx-auto flex flex-col gap-4"><div class="flex flex-col w-full pb-8">
+<!-- Top Navigation & Order Identity Bar -->
+<div class="flex items-center justify-between pb-3">
+<div class="flex items-center gap-2">
+<a class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors active:scale-95" href="#">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</a>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<h1 class="font-headline-sm text-headline-sm text-on-surface">Create Order</h1>
+<span class="px-1.5 py-0.5 rounded bg-badge-draft-bg text-badge-draft-text font-badge-label text-badge-label uppercase">Draft</span>
+</div>
+<span class="font-label-code text-label-code text-on-surface-variant">#BA-20261024-007</span>
+</div>
+</div>
+<!-- Quick Date Pill -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high active:scale-95 transition-all shadow-sm" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">calendar_today</span>
+<span class="font-body-sm text-body-sm font-semibold">24 Oct 2026</span>
+</button>
+</div>
+<!-- Step 1: Retail Party Selector Card -->
+<section class="bg-surface-card rounded-xl p-3 shadow-card flex items-center justify-between gap-3 border border-slate-200/80"><button class="flex items-center gap-2.5 min-w-0 text-left active:scale-[0.99] transition-transform flex-1" type="button"><div class="w-9 h-9 rounded-lg bg-primary text-on-primary flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">MD</div><div class="flex flex-col min-w-0"><div class="flex items-center gap-1.5"><span class="font-headline-sm text-sm font-bold text-on-surface truncate">Maruthi Departmental Store</span><span class="material-symbols-outlined text-outline text-[16px] shrink-0">unfold_more</span></div><span class="font-body-sm text-[11px] text-on-surface-variant flex items-center gap-1"><span class="material-symbols-outlined text-[12px] text-secondary">location_on</span>Singanallur Main Bazaar</span></div></button><div class="flex flex-col items-end shrink-0 pl-2 border-l border-slate-200/80"><div class="flex items-center gap-1"><span class="text-[10px] uppercase font-semibold text-on-surface-variant">Bal:</span><span class="text-xs font-bold text-on-surface">₹8,900</span></div><span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold text-[10px] leading-tight">Safe (₹50k)</span></div></section>
+<!-- Step 2: 10 Fast-Pick Wholesale Catalog Header & Filter -->
+<section class="flex flex-col gap-2 mt-1"><div class="flex items-center justify-between px-0.5"><div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5"><button class="cat-pill px-3 py-1 rounded-full bg-primary text-on-primary font-body-sm text-xs font-semibold shrink-0 shadow-sm transition-all" data-cat="all" type="button">All (10)</button><button class="cat-pill px-3 py-1 rounded-full bg-surface-card text-on-surface-variant hover:text-on-surface font-body-sm text-xs font-medium shrink-0 shadow-card transition-all" data-cat="grains" type="button">Grains &amp; Atta (3)</button><button class="cat-pill px-3 py-1 rounded-full bg-surface-card text-on-surface-variant hover:text-on-surface font-body-sm text-xs font-medium shrink-0 shadow-card transition-all" data-cat="oils" type="button">Oils (3)</button><button class="cat-pill px-3 py-1 rounded-full bg-surface-card text-on-surface-variant hover:text-on-surface font-body-sm text-xs font-medium shrink-0 shadow-card transition-all" data-cat="spices" type="button">Pulses &amp; Sugar (4)</button></div><span class="text-[11px] font-mono font-semibold text-slate-500 shrink-0 pl-1" id="catalog-count-pill">10 items</span></div><div class="flex flex-col gap-1.5" id="product-list"><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="grains" data-id="p1" data-name="aashirvaad shudh chakki atta" data-price="1840"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Aashirvaad Shudh Chakki Atta</h3><span class="font-body-sm text-xs text-on-surface-variant">Bundle (4×10kg) • <span class="font-bold text-on-surface">₹1,840</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-on-surface">2</span><button class="stepper-btn w-9 h-9 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="spices" data-id="p2" data-name="bengal gram chana dal" data-price="2850"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Bengal Gram Chana Dal</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (30kg) • <span class="font-bold text-on-surface">₹2,850</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform opacity-50" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-slate-400">0</span><button class="stepper-btn w-9 h-9 rounded-md bg-white text-slate-800 flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="spices" data-id="p3" data-name="desi supreme toor dal fatka" data-price="4350"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Desi Supreme Toor Dal Fatka</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (30kg) • <span class="font-bold text-on-surface">₹4,350</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-on-surface">1</span><button class="stepper-btn w-9 h-9 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="spices" data-id="p4" data-name="eagle machine cleaned coriander" data-price="3100"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Eagle Cleaned Coriander</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (25kg) • <span class="font-bold text-on-surface">₹3,100</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform opacity-50" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-slate-400">0</span><button class="stepper-btn w-9 h-9 rounded-md bg-white text-slate-800 flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="oils" data-id="p5" data-name="fortune refined sunflower oil" data-price="2150"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Fortune Sunflower Oil</h3><span class="font-body-sm text-xs text-on-surface-variant">Tin (15L) • <span class="font-bold text-on-surface">₹2,150</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-on-surface">3</span><button class="stepper-btn w-9 h-9 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2 transition-all border border-slate-100" data-cat="oils" data-id="p6" data-name="gold winner refined sunflower oil" data-price="2220"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Gold Winner Sunflower Oil</h3><span class="font-body-sm text-xs text-on-surface-variant">Tin (15L) • <span class="font-bold text-on-surface">₹2,220</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform opacity-50" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-slate-400">0</span><button class="stepper-btn w-9 h-9 rounded-md bg-white text-slate-800 flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2.5 transition-all border border-slate-100" data-cat="spices" data-id="p7" data-name="guntur stemless red chilli s17" data-price="5200"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Guntur Stemless Red Chilli S17</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (20kg) • <span class="font-bold text-on-surface">₹5,200</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform opacity-50" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-slate-400">0</span><button class="stepper-btn w-9 h-9 rounded-md bg-white text-slate-800 flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2.5 transition-all border border-slate-100" data-cat="oils" data-id="p8" data-name="idhayam pure sesame gingelly oil" data-price="1890"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Idhayam Pure Sesame Gingelly</h3><span class="font-body-sm text-xs text-on-surface-variant">Can (5L) • <span class="font-bold text-on-surface">₹1,890</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-on-surface">2</span><button class="stepper-btn w-9 h-9 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2.5 transition-all border border-slate-100" data-cat="grains" data-id="p9" data-name="india gate classic basmati rice" data-price="3450"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">India Gate Classic Basmati Rice</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (25kg) • <span class="font-bold text-on-surface">₹3,450</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform opacity-50" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-slate-400">0</span><button class="stepper-btn w-9 h-9 rounded-md bg-white text-slate-800 flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div><div class="product-card bg-surface-card rounded-xl p-2.5 shadow-card flex items-center justify-between gap-2.5 transition-all border border-slate-100" data-cat="spices" data-id="p10" data-name="refined white cane sugar m30" data-price="1980"><div class="flex flex-col min-w-0 pr-1"><h3 class="font-body-md text-sm font-semibold text-on-surface truncate">Refined White Cane Sugar M30</h3><span class="font-body-sm text-xs text-on-surface-variant">Bag (50kg) • <span class="font-bold text-on-surface">₹1,980</span></span></div><div class="flex items-center gap-2 shrink-0 bg-slate-100/90 p-1 rounded-lg"><button class="stepper-btn w-9 h-9 rounded-md bg-white flex items-center justify-center text-slate-800 shadow-sm active:scale-90 font-bold transition-transform" data-action="dec" type="button"><span class="material-symbols-outlined text-[18px]">remove</span></button><span class="item-qty w-7 text-center font-bold text-base text-on-surface">4</span><button class="stepper-btn w-9 h-9 rounded-md bg-primary text-on-primary flex items-center justify-center shadow-sm active:scale-90 font-bold transition-transform" data-action="inc" type="button"><span class="material-symbols-outlined text-[18px]">add</span></button></div></div></div></section>
+<!-- Step 3: Selected Order Items Live Accordion -->
+<div class="flex items-center justify-between px-3 py-2 bg-slate-100 rounded-lg text-xs font-medium text-slate-600 mt-1"><div class="flex items-center gap-1.5 truncate"><span class="material-symbols-outlined text-[16px] text-primary">local_shipping</span><span class="truncate font-medium">Tempo Delivery: "Before 10 AM, check sugar seals"</span></div><button class="text-primary text-[11px] font-bold hover:underline shrink-0 ml-2" type="button">Edit</button></div>
+<!-- Step 4: Dispatch Terms & Notes -->
+<section class="fixed bottom-16 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-4 py-2.5 max-w-lg mx-auto"><div class="flex items-center justify-between gap-3"><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Final Net</span><span class="px-1.5 py-0.2 rounded bg-badge-cash-bg text-badge-cash-text font-bold text-[10px]">-₹500</span></div><div class="flex items-baseline gap-1"><span class="text-[20px] font-bold tracking-tight text-primary leading-none" id="order-final">₹25,680</span><span class="text-[11px] text-slate-400 font-medium" id="summary-meta">4 items • 12 pcs</span></div></div><div class="flex items-center gap-2"><button class="h-11 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition-all text-xs font-semibold" id="save-draft-btn" type="button">Draft</button><button class="h-11 px-4 rounded-xl bg-primary text-on-primary hover:bg-primary-container active:scale-95 transition-all flex items-center justify-center gap-1.5 text-sm font-bold shadow-float shrink-0" id="confirm-order-btn" type="button"><span class="material-symbols-outlined text-[18px]">check_circle</span><span class="">Confirm &amp; Bill</span></button></div></div></section>
+<!-- Sticky Billing Summary & CTAs -->
+
+</div>
+<script>
+  (function() {
+    // Interactive Product Quantity Steppers
+    const productCards = document.querySelectorAll('.product-card');
+    const summaryMeta = document.getElementById('summary-meta');
+    const summaryContent = document.getElementById('summary-content');
+    const subtotalEl = document.getElementById('order-subtotal');
+    const finalEl = document.getElementById('order-final');
+    const discountVal = 500;
+
+    function recalculateTotal() {
+      let totalUnits = 0;
+      let totalItemsSelected = 0;
+      let calculatedSubtotal = 0;
+      let summaryRowsHTML = '';
+
+      productCards.forEach(card => {
+        const qtyEl = card.querySelector('.item-qty');
+        const decBtn = card.querySelector('[data-action="dec"]');
+        const qty = parseInt(qtyEl.textContent, 10);
+        const price = parseInt(card.dataset.price, 10);
+        const name = card.querySelector('h3').textContent;
+
+        if (qty > 0) {
+          totalItemsSelected++;
+          totalUnits += qty;
+          calculatedSubtotal += (qty * price);
+
+          decBtn.classList.remove('opacity-50');
+          card.classList.add('bg-surface-container-low');
+          card.classList.remove('bg-surface-card');
+
+          summaryRowsHTML += `
+            <div class="flex items-center justify-between p-2 rounded-lg bg-surface-card shadow-subtle">
+              <div class="flex flex-col min-w-0">
+                <span class="font-body-md text-body-md font-semibold text-on-surface truncate">${name}</span>
+                <span class="font-body-sm text-body-sm text-on-surface-variant">${qty} units × ₹${price.toLocaleString('en-IN')}</span>
+              </div>
+              <span class="font-currency-value text-currency-value text-on-surface">₹${(qty * price).toLocaleString('en-IN')}</span>
+            </div>
+          `;
+        } else {
+          decBtn.classList.add('opacity-50');
+          card.classList.remove('bg-surface-container-low');
+          card.classList.add('bg-surface-card');
+        }
+      });
+
+      if (summaryMeta) {
+        summaryMeta.textContent = `${totalItemsSelected} products selected • ${totalUnits} units`;
+      }
+
+      if (summaryContent) {
+        summaryContent.innerHTML = summaryRowsHTML || `
+          <div class="p-3 text-center text-outline font-body-sm text-body-sm bg-surface-container-low rounded-lg">
+            No items in order. Tap (+) on any catalog product above.
+          </div>
+        `;
+      }
+
+      if (subtotalEl) {
+        subtotalEl.textContent = `₹${calculatedSubtotal.toLocaleString('en-IN')}.00`;
+      }
+
+      const finalVal = Math.max(0, calculatedSubtotal - (calculatedSubtotal > 0 ? discountVal : 0));
+      if (finalEl) {
+        finalEl.textContent = `₹${finalVal.toLocaleString('en-IN')}.00`;
+      }
+    }
+
+    productCards.forEach(card => {
+      const decBtn = card.querySelector('[data-action="dec"]');
+      const incBtn = card.querySelector('[data-action="inc"]');
+      const qtyEl = card.querySelector('.item-qty');
+
+      decBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        let cur = parseInt(qtyEl.textContent, 10);
+        if (cur > 0) {
+          cur--;
+          qtyEl.textContent = cur;
+          if (cur === 0) {
+            qtyEl.classList.add('text-outline');
+            qtyEl.classList.remove('text-on-surface');
+            incBtn.classList.remove('bg-primary', 'text-on-primary');
+            incBtn.classList.add('bg-surface-card', 'text-on-surface');
+          }
+          recalculateTotal();
+        }
+      });
+
+      incBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        let cur = parseInt(qtyEl.textContent, 10);
+        cur++;
+        qtyEl.textContent = cur;
+        qtyEl.classList.remove('text-outline');
+        qtyEl.classList.add('text-on-surface');
+        incBtn.classList.add('bg-primary', 'text-on-primary');
+        incBtn.classList.remove('bg-surface-card', 'text-on-surface');
+        recalculateTotal();
+      });
+    });
+
+    // Category Filter Pills
+    const catPills = document.querySelectorAll('.cat-pill');
+    catPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        catPills.forEach(p => {
+          p.classList.remove('bg-primary', 'text-on-primary', 'font-semibold');
+          p.classList.add('bg-surface-card', 'text-on-surface-variant', 'font-medium');
+        });
+        pill.classList.remove('bg-surface-card', 'text-on-surface-variant', 'font-medium');
+        pill.classList.add('bg-primary', 'text-on-primary', 'font-semibold');
+
+        const filter = pill.dataset.cat;
+        productCards.forEach(card => {
+          if (filter === 'all' || card.dataset.cat === filter) {
+            card.classList.remove('hidden');
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      });
+    });
+
+    // Catalog Search Filter
+    const searchInput = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (query.length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+
+        productCards.forEach(card => {
+          const name = card.dataset.name || '';
+          if (name.includes(query)) {
+            card.classList.remove('hidden');
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      });
+
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearBtn.classList.add('hidden');
+        productCards.forEach(c => c.classList.remove('hidden'));
+      });
+    }
+
+    // Toggle Summary Accordion
+    const toggleSummaryBtn = document.getElementById('toggle-summary');
+    const summaryChevron = document.getElementById('summary-chevron');
+
+    if (toggleSummaryBtn && summaryContent) {
+      toggleSummaryBtn.addEventListener('click', () => {
+        const isHidden = summaryContent.classList.contains('hidden');
+        if (isHidden) {
+          summaryContent.classList.remove('hidden');
+          summaryChevron.style.transform = 'rotate(0deg)';
+        } else {
+          summaryContent.classList.add('hidden');
+          summaryChevron.style.transform = 'rotate(180deg)';
+        }
+      });
+    }
+
+    // Dispatch Mode Selector
+    const dispatchPills = document.querySelectorAll('.dispatch-pill');
+    dispatchPills.forEach(dp => {
+      dp.addEventListener('click', () => {
+        dispatchPills.forEach(p => {
+          p.classList.remove('bg-primary', 'text-on-primary');
+          p.classList.add('bg-surface-container', 'text-on-surface');
+        });
+        dp.classList.add('bg-primary', 'text-on-primary');
+        dp.classList.remove('bg-surface-container', 'text-on-surface');
+      });
+    });
+
+    // Confirmation Toast micro-feedback
+    const confirmBtn = document.getElementById('confirm-order-btn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        confirmBtn.innerHTML = `
+          <span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+          <span>Generating Slip...</span>
+        `;
+        setTimeout(() => {
+          confirmBtn.innerHTML = `
+            <span class="material-symbols-outlined text-[18px]">verified</span>
+            <span>Slip Dispatched!</span>
+          `;
+          confirmBtn.classList.remove('bg-primary');
+          confirmBtn.classList.add('bg-secondary');
+        }, 800);
+      });
+    }
+  })();
+</script></main>
+<!-- Floating Quick Record Floating Actions Bar -->
+
+<!-- Enterprise Fixed Bottom Navigation Tab Bar -->
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]" data-active-classes="text-indigo-600 font-semibold">
+<div class="flex items-center justify-around h-16 px-1 max-w-lg mx-auto">
+<!-- Tab 1: Dashboard (Active) -->
+<a class="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors" data-path="dashboard" href="#">
+<span class="material-symbols-outlined text-[22px]">dashboard</span>
+<span class="text-[11px] font-semibold mt-1 tracking-tight">Dashboard</span>
+<span class="w-1 h-1 rounded-full bg-indigo-600 absolute bottom-1.5"></span>
+</a>
+<!-- Tab 2: Orders -->
+<a class="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors" data-path="orders" href="#">
+<span class="material-symbols-outlined text-[22px]">receipt_long</span>
+<span class="text-[11px] font-medium mt-1 tracking-tight">Orders</span>
+</a>
+<!-- Tab 3: Parties -->
+<a class="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors" data-path="parties" href="#">
+<span class="material-symbols-outlined text-[22px]">storefront</span>
+<span class="text-[11px] font-medium mt-1 tracking-tight">Parties</span>
+</a>
+<!-- Tab 4: Payments -->
+<a class="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors" data-path="payments" href="#">
+<span class="material-symbols-outlined text-[22px]">credit_card</span>
+<span class="text-[11px] font-medium mt-1 tracking-tight">Payments</span>
+</a>
+<!-- Tab 5: More -->
+<a class="flex flex-col items-center justify-center flex-1 h-full text-slate-500 hover:text-slate-800 transition-colors" data-path="more-menu" href="#">
+<span class="material-symbols-outlined text-[22px]">more_horiz</span>
+<span class="text-[11px] font-medium mt-1 tracking-tight">More</span>
+</a>
+</div>
+</nav>
+<!-- Interactive Segment Logic Script -->
+<script>
+    (function() {
+      const tabOrders = document.getElementById('tab-orders');
+      const tabCollections = document.getElementById('tab-collections');
+      const secOrders = document.getElementById('section-orders');
+      const secCollections = document.getElementById('section-collections');
+      const refreshBtn = document.getElementById('refresh-btn');
+      const refreshIcon = document.getElementById('refresh-icon');
+
+      function showOrders() {
+        tabOrders.classList.add('bg-white', 'text-indigo-700', 'shadow-sm');
+        tabOrders.classList.remove('text-slate-600');
+        tabCollections.classList.remove('bg-white', 'text-indigo-700', 'shadow-sm');
+        tabCollections.classList.add('text-slate-600');
+        secOrders.classList.remove('hidden');
+        secCollections.classList.add('hidden');
+      }
+
+      function showCollections() {
+        tabCollections.classList.add('bg-white', 'text-indigo-700', 'shadow-sm');
+        tabCollections.classList.remove('text-slate-600');
+        tabOrders.classList.remove('bg-white', 'text-indigo-700', 'shadow-sm');
+        tabOrders.classList.add('text-slate-600');
+        secCollections.classList.remove('hidden');
+        secOrders.classList.add('hidden');
+      }
+
+      if (tabOrders && tabCollections) {
+        tabOrders.addEventListener('click', showOrders);
+        tabCollections.addEventListener('click', showCollections);
+      }
+
+      if (refreshBtn && refreshIcon) {
+        refreshBtn.addEventListener('click', function() {
+          refreshIcon.classList.add('rotate-180');
+          setTimeout(() => {
+            refreshIcon.classList.remove('rotate-180');
+          }, 500);
+        });
+      }
+    })();
+  </script>
+
+
+</body></html>

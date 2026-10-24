@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   ShoppingCart,
   Plus,
+  Minus,
   Search,
   Printer,
   AlertTriangle,
   Copy,
-  FileText
+  FileText,
+  CheckCircle2,
+  MapPin,
+  Truck
 } from 'lucide-react';
 import { api } from '../api';
 import type { SalesOrder, Party, Product, UserRole } from '../types';
@@ -54,6 +58,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [formDiscountType, setFormDiscountType] = useState<'flat' | 'percent'>('flat');
   const [formDiscountValue, setFormDiscountValue] = useState('0');
   const [formNotes, setFormNotes] = useState('');
+  const [catalogCategory, setCatalogCategory] = useState<string>('all');
   const [formLines, setFormLines] = useState<
     { product_id: string; quantity: number; unit_price: number; unit: string; line_total: number; original_price?: number; price_changed?: boolean }[]
   >([]);
@@ -107,6 +112,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   // Calculation helpers
   const subtotal = formLines.reduce((acc, l) => acc + (l.line_total || 0), 0);
+  const totalUnits = formLines.reduce((acc, l) => acc + (l.quantity || 0), 0);
   const numDiscVal = parseFloat(formDiscountValue) || 0;
   const discountAmount = formDiscountType === 'percent' ? (subtotal * numDiscVal) / 100 : numDiscVal;
   const finalOrderValue = Math.max(0, subtotal - discountAmount);
@@ -150,6 +156,21 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   const handleRemoveLine = (index: number) => {
     setFormLines(formLines.filter((_, i) => i !== index));
+  };
+
+  const handleProductStepper = (productId: string, delta: number) => {
+    const existingIndex = formLines.findIndex(l => l.product_id === productId);
+    if (existingIndex >= 0) {
+      const currentQty = formLines[existingIndex].quantity;
+      const newQty = currentQty + delta;
+      if (newQty <= 0) {
+        handleRemoveLine(existingIndex);
+      } else {
+        handleUpdateLine(existingIndex, 'quantity', newQty);
+      }
+    } else if (delta > 0) {
+      handleAddProductLine(productId);
+    }
   };
 
   // Submit create order
@@ -508,121 +529,196 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 </div>
               )}
 
-              {/* Party Selection & Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2 space-y-1">
-                  <label className="font-semibold text-slate-700">Select Retail Party *</label>
-                  <select
-                    value={formPartyId}
-                    onChange={e => setFormPartyId(e.target.value)}
-                    required
-                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-medium"
-                  >
-                    <option value="">-- Choose Party --</option>
-                    {parties.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.area}) — Outstanding: ₹{(p.outstanding_balance || 0).toLocaleString('en-IN')}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Order Date *</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={e => setFormDate(e.target.value)}
-                    required
-                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Party Quick Info Bar */}
-              {selectedFormParty && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 grid grid-cols-3 gap-2 text-xs">
+              {/* Step 1: Retail Party Selector Card (Stitch Spec) */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
                   <div>
-                    <span className="text-[11px] text-slate-400 block">Area & Phone:</span>
-                    <span className="font-semibold text-slate-800">{selectedFormParty.area} • {selectedFormParty.phone}</span>
+                    <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                      Step 1: Retail Customer & Date
+                    </label>
+                    <span className="text-[11px] text-slate-400">Select party to check credit limits</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-400 block">Current Outstanding Balance:</span>
-                    <span className={`font-bold ${(selectedFormParty.outstanding_balance || 0) > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-                      ₹{(selectedFormParty.outstanding_balance || 0).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-slate-400 block">Payment Terms / Credit Limit:</span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedFormParty.payment_terms_days} days • ₹{(selectedFormParty.credit_limit || 0).toLocaleString('en-IN')}
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-500">Order Date:</span>
+                    <input
+                      type="date"
+                      value={formDate}
+                      onChange={e => setFormDate(e.target.value)}
+                      required
+                      className="text-xs px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-medium"
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Product Search & Quick Add Section */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800">Select & Add Products to Order:</label>
-                  <span className="text-[11px] text-slate-400">Click a product to append</span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1.5 border border-slate-200 rounded-lg bg-slate-50/50">
-                  {products.map(prod => (
-                    <button
-                      key={prod.id}
-                      type="button"
-                      onClick={() => handleAddProductLine(prod.id)}
-                      className="p-2 bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 rounded text-left transition-colors cursor-pointer group"
+                <div className="bg-white rounded-xl p-3 border border-slate-200/90 shadow-[0_1px_3px_0_rgba(15,23,42,0.04)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <select
+                      value={formPartyId}
+                      onChange={e => setFormPartyId(e.target.value)}
+                      required
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-bold text-slate-800 cursor-pointer"
                     >
-                      <p className="font-semibold text-slate-900 group-hover:text-indigo-700 truncate text-[11px]">
-                        {prod.name}
-                      </p>
-                      <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
-                        <span>{prod.unit}</span>
-                        <span className="font-bold text-slate-900">₹{prod.selling_price}</span>
+                      <option value="">-- Select Retail Party --</option>
+                      {parties.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.area}) — Balance: ₹{(p.outstanding_balance || 0).toLocaleString('en-IN')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedFormParty && (
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pl-0 sm:pl-3 sm:border-l border-slate-200/80 shrink-0">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold">Outstanding Bal</span>
+                        <span className={`text-xs font-bold ${(selectedFormParty.outstanding_balance || 0) > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          ₹{(selectedFormParty.outstanding_balance || 0).toLocaleString('en-IN')}
+                        </span>
                       </div>
-                    </button>
-                  ))}
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold">Credit Status</span>
+                        {(selectedFormParty.outstanding_balance || 0) > (selectedFormParty.credit_limit || 0) && (selectedFormParty.credit_limit || 0) > 0 ? (
+                          <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[10px]">
+                            Over Limit (₹{(selectedFormParty.credit_limit || 0).toLocaleString('en-IN')})
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
+                            Safe (₹{(selectedFormParty.credit_limit || 0).toLocaleString('en-IN')} limit)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Order Lines Table */}
-              <div className="space-y-2">
+              {/* Step 2: 10 Fast-Pick Wholesale Catalog & Steppers (Stitch Spec) */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                      Step 2: Fast-Pick Wholesale Catalog
+                    </label>
+                    <span className="text-[11px] text-slate-400">Tap (+) or (-) to add quantity directly</span>
+                  </div>
+
+                  {/* Category Filter Pills matching Stitch */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                    <button
+                      type="button"
+                      onClick={() => setCatalogCategory('all')}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
+                        catalogCategory === 'all'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All ({products.length})
+                    </button>
+                    {Array.from(new Set(products.map(p => p.category).filter(Boolean))).map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCatalogCategory(cat)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
+                          catalogCategory === cat
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Fast-Pick Product Cards Grid with Steppers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-slate-200/80 rounded-xl bg-slate-50/50">
+                  {products
+                    .filter(p => catalogCategory === 'all' || p.category === catalogCategory)
+                    .map(prod => {
+                      const line = formLines.find(l => l.product_id === prod.id);
+                      const qty = line ? line.quantity : 0;
+                      return (
+                        <div
+                          key={prod.id}
+                          className={`rounded-xl p-3 border transition-all flex items-center justify-between gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)] ${
+                            qty > 0
+                              ? 'bg-indigo-50/40 border-indigo-300 ring-1 ring-indigo-200/60'
+                              : 'bg-white border-slate-200/80 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex flex-col min-w-0 pr-1">
+                            <h4 className="text-xs font-bold text-slate-900 truncate">{prod.name}</h4>
+                            <span className="text-[11px] text-slate-500 mt-0.5">
+                              {prod.unit} • <strong className="text-slate-800">₹{prod.selling_price}</strong>
+                            </span>
+                          </div>
+
+                          {/* Stepper matching Stitch Screen 2 */}
+                          <div className="flex items-center gap-1.5 shrink-0 bg-slate-100/90 p-1 rounded-lg border border-slate-200/80">
+                            <button
+                              type="button"
+                              disabled={qty <= 0}
+                              onClick={() => handleProductStepper(prod.id, -1)}
+                              className={`w-7 h-7 rounded bg-white flex items-center justify-center text-slate-700 shadow-2xs font-bold transition-all active:scale-90 cursor-pointer ${
+                                qty <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-200'
+                              }`}
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className={`w-6 text-center font-bold text-xs ${qty > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
+                              {qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleProductStepper(prod.id, 1)}
+                              className="w-7 h-7 rounded bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-2xs font-bold transition-all active:scale-90 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Step 3: Selected Order Lines Table */}
+              <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800">Order Product Lines ({formLines.length})</span>
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Selected Order Items ({formLines.length})
+                  </span>
+                  <span className="text-[11px] text-indigo-600 font-semibold">
+                    Total Units: {totalUnits}
+                  </span>
                 </div>
 
                 {formLines.length === 0 ? (
-                  <div className="py-8 text-center text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                    No items added yet. Click items above to add them to this order.
+                  <div className="py-6 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-xs">
+                    No items selected. Tap (+) on any catalog item above to start billing.
                   </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                     <table className="w-full text-xs text-left">
-                      <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                      <thead className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
                         <tr>
                           <th className="py-2 px-3">Product Name</th>
-                          <th className="py-2 px-3 w-28">Unit</th>
-                          <th className="py-2 px-3 w-28 text-right">Unit Price (₹)</th>
-                          <th className="py-2 px-3 w-24 text-center">Quantity</th>
+                          <th className="py-2 px-3 w-24">Unit</th>
+                          <th className="py-2 px-3 w-24 text-right">Rate (₹)</th>
+                          <th className="py-2 px-3 w-20 text-center">Qty</th>
                           <th className="py-2 px-3 w-28 text-right">Line Total (₹)</th>
-                          <th className="py-2 px-3 w-10"></th>
+                          <th className="py-2 px-3 w-8"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 bg-white">
                         {formLines.map((line, idx) => {
                           const prod = products.find(p => p.id === line.product_id);
                           return (
-                            <tr key={idx} className="hover:bg-slate-50/50">
-                              <td className="py-2 px-3 font-medium text-slate-900">
+                            <tr key={idx} className="hover:bg-slate-50/60">
+                              <td className="py-2 px-3 font-semibold text-slate-900">
                                 {prod?.name || 'Product'}
-                                {line.price_changed && (
-                                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 ml-2">
-                                    Price updated (was ₹{line.original_price})
-                                  </span>
-                                )}
                               </td>
                               <td className="py-2 px-3 text-slate-500">{line.unit}</td>
                               <td className="py-2 px-3 text-right">
@@ -631,7 +727,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                                   step="0.01"
                                   value={line.unit_price}
                                   onChange={e => handleUpdateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                                  className="w-24 p-1 bg-white border border-slate-300 rounded text-right font-semibold outline-none focus:border-indigo-500"
+                                  className="w-20 p-1 bg-white border border-slate-300 rounded text-right font-semibold outline-none focus:border-indigo-500"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
@@ -640,7 +736,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                                   min="1"
                                   value={line.quantity}
                                   onChange={e => handleUpdateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
-                                  className="w-16 p-1 bg-white border border-slate-300 rounded text-center font-bold outline-none focus:border-indigo-500"
+                                  className="w-14 p-1 bg-white border border-slate-300 rounded text-center font-bold outline-none focus:border-indigo-500"
                                 />
                               </td>
                               <td className="py-2 px-3 text-right font-bold text-slate-900">
@@ -650,7 +746,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveLine(idx)}
-                                  className="text-slate-400 hover:text-rose-600 p-1"
+                                  className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer font-bold"
                                 >
                                   ✕
                                 </button>
@@ -664,95 +760,94 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 )}
               </div>
 
-              {/* Discounts & Order Value Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-200">
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="font-semibold text-slate-700">Order Notes / Delivery Instructions</label>
-                    <textarea
-                      value={formNotes}
-                      onChange={e => setFormNotes(e.target.value)}
-                      placeholder="e.g. Delivery before 10 AM, wholesale discount applied"
-                      rows={2}
-                      className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="space-y-1 w-32">
-                      <label className="font-semibold text-slate-700">Discount</label>
-                      <select
-                        value={formDiscountType}
-                        onChange={e => setFormDiscountType(e.target.value as any)}
-                        className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
-                      >
-                        <option value="flat">Flat (₹)</option>
-                        <option value="percent">Percentage (%)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1 w-32">
-                      <label className="font-semibold text-slate-700">Value</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={formDiscountValue}
-                        onChange={e => setFormDiscountValue(e.target.value)}
-                        className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-medium"
-                      />
-                    </div>
-                  </div>
+              {/* Step 4: Dispatch Terms & Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-indigo-500" /> Dispatch Instructions / Notes
+                  </label>
+                  <textarea
+                    value={formNotes}
+                    onChange={e => setFormNotes(e.target.value)}
+                    placeholder='e.g. Delivery before 10 AM, check bag seals'
+                    rows={2}
+                    className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  />
                 </div>
 
-                {/* Calculation Totals */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
-                    <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <div className="flex items-center gap-3">
+                  <div className="space-y-1 w-32">
+                    <label className="text-xs font-semibold text-slate-700">Discount Type</label>
+                    <select
+                      value={formDiscountType}
+                      onChange={e => setFormDiscountType(e.target.value as any)}
+                      className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                    >
+                      <option value="flat">Flat (₹)</option>
+                      <option value="percent">Percentage (%)</option>
+                    </select>
                   </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Discount:</span>
-                      <span>-₹{discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-base font-bold text-slate-900 pt-2 border-t border-slate-200">
-                    <span>Final Order Value:</span>
-                    <span className="text-indigo-700">₹{finalOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+
+                  <div className="space-y-1 flex-1">
+                    <label className="text-xs font-semibold text-slate-700">Discount Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formDiscountValue}
+                      onChange={e => setFormDiscountValue(e.target.value)}
+                      className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-bold"
+                    />
                   </div>
-                  <p className="text-[10px] text-slate-400 italic pt-1">
-                    Confirmed orders post a debit receivable to the party account. Stock will be reserved.
-                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Modal Footer Actions */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-100 text-xs"
-              >
-                Cancel
-              </button>
-              <div className="flex items-center gap-2">
+            {/* Step 5: Sticky Summary Bar & Action Buttons (Stitch Spec) */}
+            <div className="p-4 bg-white border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Final Net:</span>
+                  {discountAmount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                      -₹{discountAmount.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-xl font-bold tracking-tight text-indigo-700">
+                    ₹{finalOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {formLines.length} items • {totalUnits} pcs
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-3.5 py-2 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-100 text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
                 <button
                   type="button"
                   disabled={isSubmittingOrder || formLines.length === 0}
                   onClick={() => handleCreateOrder('draft')}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold text-xs transition-colors"
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Save as Draft
+                  Save Draft
                 </button>
                 <button
                   type="button"
                   disabled={isSubmittingOrder || formLines.length === 0}
                   onClick={() => handleCreateOrder('confirmed')}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  Confirm Order & Generate Slip
+                  <CheckCircle2 className="w-4 h-4" />
+                  Confirm & Bill
                 </button>
               </div>
             </div>
