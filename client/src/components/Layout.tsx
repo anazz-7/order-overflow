@@ -16,9 +16,12 @@ import {
   AlertCircle,
   Info,
   AlertTriangle,
-  Layers
+  Layers,
+  Download,
+  WifiOff
 } from 'lucide-react';
 import type { UserRole, ToastMessage } from '../types';
+import { usePwa } from '../pwa';
 
 interface LayoutProps {
   currentTab: string;
@@ -47,6 +50,7 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const { isInstallable, isInstalled, isOnline, installApp } = usePwa();
 
   // Close menus on Esc or resize
   useEffect(() => {
@@ -97,7 +101,17 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Right: Action Icons & Profile */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isInstallable && !isInstalled && (
+              <button
+                onClick={installApp}
+                title="Install OrderFlow Pro App"
+                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs active:scale-95 transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-[11px]">Install</span>
+              </button>
+            )}
             <button
               onClick={onOpenSearch}
               aria-label="Global Search"
@@ -250,6 +264,26 @@ export const Layout: React.FC<LayoutProps> = ({
           })}
         </nav>
 
+        {/* PWA Install Banner in Sidebar */}
+        {isInstallable && !isInstalled && (
+          <div className="px-3 pb-2">
+            <button
+              onClick={installApp}
+              className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl p-2.5 text-xs font-semibold flex items-center justify-between shadow-sm transition-all cursor-pointer border border-indigo-400/30 active:scale-98"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-indigo-500/30 flex items-center justify-center shrink-0">
+                  <Download className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-white leading-tight">Install OrderFlow App</p>
+                  <p className="text-[10px] text-indigo-200 font-normal">Native desktop & mobile PWA</p>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* User Role Switcher & Profile Card in Sidebar Footer */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/60">
           <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between">
@@ -317,6 +351,16 @@ export const Layout: React.FC<LayoutProps> = ({
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-3">
+            {isInstallable && !isInstalled && (
+              <button
+                onClick={installApp}
+                title="Install OrderFlow Pro on desktop"
+                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer border border-slate-700/60"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Install App</span>
+              </button>
+            )}
             <button
               onClick={() => onQuickCreate('order')}
               className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -347,6 +391,14 @@ export const Layout: React.FC<LayoutProps> = ({
             </button>
           </div>
         </header>
+
+        {/* Offline Warning Banner */}
+        {!isOnline && (
+          <div className="no-print bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 text-center sticky top-16 md:top-16 z-30 shadow-xs animate-in slide-in-from-top-2">
+            <WifiOff className="w-4 h-4 shrink-0" />
+            <span>Offline Mode Active — Cached data is displayed. Local changes will sync when connection is restored.</span>
+          </div>
+        )}
 
         {/* View Content Body with Mobile Top Header & Bottom Nav Clearance */}
         <main className="flex-1 pt-20 md:pt-6 pb-24 md:pb-8 p-4 md:p-6 lg:p-8 overflow-y-auto">

@@ -1,0 +1,100 @@
+{
+  "name": "OrderFlow Pro — Wholesale Distribution ERP",
+  "short_name": "OrderFlow Pro",
+  "description": "High-velocity sales ordering, billing, ledger & payment tracking system for wholesale distributors",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#090D16",
+  "theme_color": "#4F46E5",
+  "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512 192x192 any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Sales Order",
+      "short_name": "New Order",
+      "description": "Create a wholesale sales order",
+      "url": "/#action=new-order",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Record Party Payment",
+      "short_name": "Payment",
+      "description": "Record a customer receipt or collection",
+      "url": "/#action=record-payment",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Outstanding Balances",
+      "short_name": "Outstanding",
+      "description": "View unpaid customer orders and aged receivables",
+      "url": "/#view=outstanding",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Parties Directory",
+      "short_name": "Parties",
+      "description": "Manage customer accounts, statements and ledgers",
+      "url": "/#view=parties",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
