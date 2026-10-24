@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
@@ -8,9 +8,26 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let errorMsg = `Server error (${response.status})`;
+    try {
+      const errJson = JSON.parse(text);
+      if (errJson.error) errorMsg = errJson.error;
+    } catch {
+      if (response.status === 404) {
+        errorMsg = 'Backend API not found (404). Ensure the backend server is running and accessible.';
+      } else if (text && text.length < 200) {
+        errorMsg += `: ${text}`;
+      }
+    }
+    throw new Error(errorMsg);
+  }
+
   const data = await response.json();
 
-  if (!response.ok || data.success === false) {
+  if (data.success === false) {
     throw new Error(data.error || 'Server request failed');
   }
 
