@@ -11,17 +11,13 @@ import {
   AlertCircle,
   FileText,
   Calendar,
-  IndianRupee,
-  Building,
-  ArrowRight,
   ShieldAlert,
-  Clock,
   Layers
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import confetti from 'canvas-confetti';
 import { api } from '../api';
-import { Payment, Party, SalesOrder, UserRole } from '../types';
+import { Payment, Party, UserRole } from '../types';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 
 interface PaymentsViewProps {

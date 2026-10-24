@@ -4,20 +4,10 @@ import {
   Plus,
   Search,
   Phone,
-  MessageSquare,
   MapPin,
-  Calendar,
   CreditCard,
   ShoppingCart,
-  FileText,
-  Printer,
-  Download,
-  AlertTriangle,
-  ChevronRight,
-  Building,
-  CheckCircle2,
-  Clock,
-  ArrowUpRight
+  Printer
 } from 'lucide-react';
 import { api } from '../api';
 import { Party, PartyStatement, UserRole } from '../types';
@@ -100,14 +90,6 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
     fetchParties();
   }, [areaFilter, statusFilter]);
 
-  // Handle selected party from search or parent
-  useEffect(() => {
-    if (selectedPartyId) {
-      handleOpenPartyProfile(selectedPartyId);
-      if (onClearSelectedParty) onClearSelectedParty();
-    }
-  }, [selectedPartyId]);
-
   // Open party profile drawer & fetch statement/orders/payments
   const handleOpenPartyProfile = async (partyId: string) => {
     try {
@@ -129,6 +111,14 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
       onShowToast('error', 'Failed to load party profile', err.message);
     }
   };
+
+  // Handle selected party from search or parent
+  useEffect(() => {
+    if (selectedPartyId) {
+      handleOpenPartyProfile(selectedPartyId);
+      if (onClearSelectedParty) onClearSelectedParty();
+    }
+  }, [selectedPartyId]);
 
   // Reload statement when date filters change
   const handleFilterStatement = async () => {
