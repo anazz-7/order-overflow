@@ -21,6 +21,28 @@
   }
 }
 
+/* Mobile Safe-Area Inset Support for Notch / Dynamic Island / Status Bar */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+}
+
+/* Responsive Main View Content Area */
+.main-content-area {
+  padding-top: calc(3.75rem + max(env(safe-area-inset-top, 0px), 0px));
+  padding-bottom: calc(5.25rem + max(env(safe-area-inset-bottom, 0px), 0px));
+}
+
+@media (min-width: 768px) {
+  .main-content-area {
+    padding-top: 1.5rem; /* 24px - standard md:pt-6 */
+    padding-bottom: 2rem; /* 32px - standard md:pb-8 */
+  }
+}
+
 /* Custom print media styles for receipts and statements */
 @media print {
   body {

@@ -79,56 +79,57 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row antialiased text-slate-900 font-sans">
-      {/* Mobile Top App Bar Header (Stitch Spec) */}
-      <header className="md:hidden no-print fixed top-0 w-full z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="h-16 px-4 flex items-center justify-between gap-3">
-          {/* Left: Brand + Entity Pill */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
-              <Layers className="w-5 h-5 text-white" />
+      {/* Mobile Top App Bar Header (Stitch Spec with Status Bar Safe-Area Support) */}
+      <header className="md:hidden no-print fixed top-0 left-0 right-0 w-full z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] pt-safe">
+        <div className="h-14 sm:h-16 px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-3">
+          {/* Left: Brand + Entity Information */}
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div className="flex flex-col min-w-0 leading-tight">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold tracking-tight text-slate-900 truncate">OrderFlow Pro</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">ERP</span>
+            <div className="flex flex-col min-w-0 flex-1 justify-center leading-tight overflow-hidden">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 truncate">OrderFlow Pro</span>
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider px-1 sm:px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-mono shrink-0 border border-indigo-200/50">ERP</span>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="text-xs font-medium text-slate-600 truncate">{businessName}</span>
-                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1 py-0.5 rounded leading-none">Active</span>
+                <span className="text-[11px] font-medium text-slate-600 truncate">{businessName}</span>
+                <span className="hidden xs:inline-flex items-center text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0 leading-tight">Active</span>
               </div>
             </div>
           </div>
 
           {/* Right: Action Icons & Profile */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {isInstallable && !isInstalled && (
               <button
                 onClick={installApp}
                 title="Install OrderFlow Pro App"
-                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                className="p-1.5 sm:px-2 sm:py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs active:scale-95 transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="text-[11px]">Install</span>
+                <span className="hidden sm:inline text-[11px]">Install</span>
               </button>
             )}
             <button
               onClick={onOpenSearch}
               aria-label="Global Search"
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 active:scale-95 transition-all"
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
             >
               <Search className="w-4 h-4" />
             </button>
             <button
               onClick={onToggleRole}
               title={`Role: ${userRole === 'admin' ? 'Owner / Admin' : 'Staff'}`}
-              className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold ring-1 ring-slate-900/10 shadow-xs"
+              className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold ring-1 ring-slate-900/10 shadow-xs cursor-pointer active:scale-95"
             >
               {userRole === 'admin' ? 'AD' : 'ST'}
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              aria-label="Toggle navigation menu"
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer active:scale-95"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -334,16 +335,16 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Center Search Input */}
-          <div className="flex items-center gap-3 w-96">
+          <div className="flex items-center gap-3 w-64 lg:w-80 xl:w-96 shrink min-w-0">
             <button
               onClick={onOpenSearch}
-              className="w-full flex items-center justify-between px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-xs text-slate-400 transition-colors cursor-pointer shadow-2xs"
+              className="w-full flex items-center justify-between px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-xs text-slate-400 transition-colors cursor-pointer shadow-2xs min-w-0"
             >
-              <span className="flex items-center gap-2">
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-                Search parties, orders, products, payments...
+              <span className="flex items-center gap-2 truncate pr-1">
+                <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">Search parties, orders, products...</span>
               </span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 rounded shadow-2xs">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 rounded shadow-2xs shrink-0">
                 Ctrl K
               </kbd>
             </button>
@@ -401,12 +402,12 @@ export const Layout: React.FC<LayoutProps> = ({
         )}
 
         {/* View Content Body with Mobile Top Header & Bottom Nav Clearance */}
-        <main className="flex-1 pt-20 md:pt-6 pb-24 md:pb-8 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 main-content-area p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
           {children}
         </main>
 
         {/* Mobile Fixed Bottom Navigation Tab Bar (Stitch Spec) */}
-        <nav className="md:hidden fixed bottom-0 w-full z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] no-print">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] no-print pb-safe">
           <div className="flex items-center justify-around h-16 px-1 max-w-lg mx-auto">
             {/* Tab 1: Dashboard */}
             <button

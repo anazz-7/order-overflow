@@ -8,8 +8,7 @@ import {
   ArrowUpRight,
   Plus,
   AlertTriangle,
-  Calendar,
-  RefreshCw
+  Calendar
 } from 'lucide-react';
 import { api } from '../api';
 
@@ -107,31 +106,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   } = data || {};
 
   return (
-    <div className="space-y-5">
-      {/* Top Banner & Refresh */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_0_rgba(15,23,42,0.04)]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">Wholesale Dashboard</h1>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 uppercase">
-              Live Operations
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time orders, receipts, and receivables for Barakkath Agencies
-          </p>
-        </div>
-
-        <button
-          onClick={fetchDashboard}
-          title="Refresh dashboard"
-          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer border border-slate-200/70"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Stitch Quick Action Launchpad (3-Action Rhythm) */}
+    <div className="space-y-4 sm:space-y-5">
+      {/* Quick Action Launchpad (3-Action Rhythm) */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
         {/* + New Order */}
         <button
