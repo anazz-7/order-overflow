@@ -66,7 +66,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   // Record Form state
   const [formPartyId, setFormPartyId] = useState('');
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formAmount, setFormAmount] = useState('');
   const [formMethod, setFormMethod] = useState<'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque' | 'Other'>('UPI');
   const [formRefNo, setFormRefNo] = useState('');
@@ -152,7 +152,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
     for (const ord of partyUnpaidOrders) {
       if (remainingToAlloc <= 0) break;
-      const orderOutstanding = ord.outstanding_amount;
+      const orderOutstanding = Number(ord.outstanding_amount !== undefined ? ord.outstanding_amount : (Number(ord.final_amount || 0) - Number(ord.allocated_amount || 0)));
       const toAlloc = Math.min(remainingToAlloc, orderOutstanding);
       if (toAlloc > 0) {
         newMap[ord.id] = toAlloc.toFixed(2);
@@ -212,7 +212,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
         confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
       } catch (e) {}
 
-      onShowToast('success', 'Payment Recorded!', `Receipt #${res.data.receipt_id} generated for ₹${numEnteredAmount.toLocaleString('en-IN')}`);
+      const receiptId = res.data?.receipt_id || res.data?.id || 'RECEIPT';
+      onShowToast('success', 'Payment Recorded!', `Receipt #${receiptId} generated for ₹${numEnteredAmount.toLocaleString('en-IN')}`);
       setIsRecordModalOpen(false);
 
       // Reset form
@@ -225,9 +226,11 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       // Refresh list and open receipt modal
       fetchData();
-      const newPayment = await api.getPayment(res.data.receipt_id);
-      if (newPayment.data) {
-        setActiveReceiptPayment(newPayment.data);
+      if (receiptId) {
+        const newPayment = await api.getPayment(receiptId);
+        if (newPayment.data) {
+          setActiveReceiptPayment(newPayment.data);
+        }
       }
     } catch (err: any) {
       onShowToast('error', 'Failed to save payment', err.message);
@@ -813,32 +816,36 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       </p>
                     ) : (
                       <div className="max-h-48 overflow-y-auto divide-y divide-slate-200">
-                        {partyUnpaidOrders.map(ord => (
-                          <div key={ord.id} className="py-2 flex items-center justify-between gap-4">
-                            <div>
-                              <span className="font-mono font-bold text-slate-900">{ord.id}</span>
-                              <span className="text-[11px] text-slate-400 ml-2">({ord.order_date})</span>
-                              <p className="text-[11px] text-slate-600">
-                                Total: ₹{ord.final_amount.toLocaleString('en-IN')} | Remaining: <strong className="text-amber-700">₹{ord.outstanding_amount.toLocaleString('en-IN')}</strong>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 w-36">
-                              <span className="text-slate-400 font-bold">₹</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                max={ord.outstanding_amount}
-                                value={orderAllocations[ord.id] || ''}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setOrderAllocations(prev => ({ ...prev, [ord.id]: val }));
-                                }}
+                        {partyUnpaidOrders.map(ord => {
+                          const remainingAmt = Number(ord.outstanding_amount !== undefined ? ord.outstanding_amount : (Number(ord.final_amount || 0) - Number(ord.allocated_amount || 0)));
+                          const finalAmt = Number(ord.final_amount || 0);
+                          return (
+                            <div key={ord.id} className="py-2 flex items-center justify-between gap-4">
+                              <div>
+                                <span className="font-mono font-bold text-slate-900">{ord.id}</span>
+                                <span className="text-[11px] text-slate-400 ml-2">({ord.order_date})</span>
+                                <p className="text-[11px] text-slate-600">
+                                  Total: ₹{finalAmt.toLocaleString('en-IN')} | Remaining: <strong className="text-amber-700">₹{remainingAmt.toLocaleString('en-IN')}</strong>
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 w-36">
+                                <span className="text-slate-400 font-bold">₹</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  max={remainingAmt}
+                                  value={orderAllocations[ord.id] || ''}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setOrderAllocations(prev => ({ ...prev, [ord.id]: val }));
+                                  }}
                                 placeholder="0.00"
                                 className="w-full p-1.5 bg-white border border-slate-300 rounded text-right font-medium text-xs outline-none focus:border-indigo-500"
                               />
                             </div>
                           </div>
-                        ))}
+                        );
+                      })}
                       </div>
                     )}
                   </div>

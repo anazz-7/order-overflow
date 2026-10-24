@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  TrendingUp,
   CreditCard,
   Scale,
   ShoppingCart,
@@ -9,10 +8,7 @@ import {
   ArrowUpRight,
   Plus,
   AlertTriangle,
-  Clock,
-  CheckCircle2,
   Calendar,
-  IndianRupee,
   RefreshCw
 } from 'lucide-react';
 import { api } from '../api';

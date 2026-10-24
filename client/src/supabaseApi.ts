@@ -264,7 +264,17 @@ export const supabaseApi = {
       .order('order_date', { ascending: true });
 
     if (error) throw new Error(error.message);
-    return { success: true, data: data || [] };
+    const orders = (data || []).map((o: any) => {
+      const finalAmt = Number(o.final_amount || 0);
+      const allocAmt = Number(o.allocated_amount || 0);
+      return {
+        ...o,
+        final_amount: finalAmt,
+        allocated_amount: allocAmt,
+        outstanding_amount: Math.max(0, finalAmt - allocAmt)
+      };
+    });
+    return { success: true, data: orders };
   },
 
   // Products
@@ -436,14 +446,22 @@ export const supabaseApi = {
     const { data, error } = await sb.from('sales_orders').select(`
       *,
       party:parties(*),
-      items:order_items(*)
+      items:order_items(*),
+      allocations:payment_allocations(*)
     `).eq('id', id).single();
 
     if (error) throw new Error(error.message);
+
+    const finalAmount = Number(data.final_amount || 0);
+    const allocatedAmount = Number(data.allocated_amount || 0);
+
     return {
       success: true,
       data: {
         ...data,
+        final_amount: finalAmount,
+        allocated_amount: allocatedAmount,
+        outstanding_on_order: Math.max(0, finalAmount - allocatedAmount),
         party_name: data.party?.name,
         party_area: data.party?.area,
         party_phone: data.party?.phone,
@@ -455,28 +473,111 @@ export const supabaseApi = {
 
   getRepeatOrderData: async (id: string) => {
     const sb = getClient();
-    const { data, error } = await sb.from('order_items').select('*').eq('order_id', id);
-    if (error) throw new Error(error.message);
-    return { success: true, data: data || [] };
+    const { data: order, error: oErr } = await sb.from('sales_orders').select('*').eq('id', id).single();
+    if (oErr) throw new Error(oErr.message);
+
+    const { data: party } = await sb.from('parties').select('*').eq('id', order.party_id).single();
+    const { data: items, error: iErr } = await sb.from('order_items').select('*').eq('order_id', id);
+    if (iErr) throw new Error(iErr.message);
+
+    const { data: products } = await sb.from('products').select('*');
+    const prodMap = new Map((products || []).map((p: any) => [p.id, p]));
+
+    let priceChangesDetected = false;
+    const itemsWithCurrentPrices = (items || []).map((item: any) => {
+      const currentProd = prodMap.get(item.product_id);
+      const currentPrice = currentProd ? Number(currentProd.selling_price) : Number(item.unit_price);
+      const isPriceDiff = currentProd && Number(currentProd.selling_price) !== Number(item.unit_price);
+      if (isPriceDiff) priceChangesDetected = true;
+
+      const qty = Number(item.quantity || 1);
+      return {
+        product_id: item.product_id,
+        product_sku: currentProd ? currentProd.sku : item.product_sku,
+        product_name: currentProd ? currentProd.name : item.product_name,
+        unit: currentProd ? currentProd.unit : item.unit,
+        original_price: Number(item.unit_price),
+        unit_price: currentPrice,
+        price_changed: isPriceDiff,
+        quantity: qty,
+        line_total: qty * currentPrice,
+        stock_available: currentProd ? currentProd.stock_quantity : 0
+      };
+    });
+
+    const subtotal = itemsWithCurrentPrices.reduce((acc: number, it: any) => acc + it.line_total, 0);
+
+    return {
+      success: true,
+      data: {
+        original_order_id: order.id,
+        party_id: order.party_id,
+        party_name: party ? party.name : '',
+        notes: `Repeat of order ${order.id}`,
+        items: itemsWithCurrentPrices,
+        subtotal,
+        price_changes_detected: priceChangesDetected
+      }
+    };
   },
 
   createOrder: async (orderData: any, userName: string) => {
     const sb = getClient();
     const orderId = `BA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderDate = orderData.order_date || getTodayStr();
+
+    // Fetch products catalog to resolve missing names, skus, and rates
+    const { data: products } = await sb.from('products').select('*');
+    const prodMap = new Map((products || []).map((p: any) => [p.id, p]));
+
+    // Fetch party for payment terms
+    const { data: party } = await sb.from('parties').select('*').eq('id', orderData.party_id).single();
+    const termsDays = Number(party?.payment_terms_days || 15);
+    const orderDateObj = new Date(orderDate);
+    orderDateObj.setDate(orderDateObj.getDate() + termsDays);
+    const dueDate = orderData.due_date || orderDateObj.toISOString().split('T')[0];
+
+    // Compute subtotal and prepare items
+    let computedSubtotal = 0;
+    const itemsToInsert = (orderData.items || []).map((it: any) => {
+      const prod = prodMap.get(it.product_id);
+      const price = Number(it.unit_price !== undefined ? it.unit_price : (prod?.selling_price || 0));
+      const qty = Number(it.quantity || 1);
+      const lineTotal = price * qty;
+      computedSubtotal += lineTotal;
+      return {
+        order_id: orderId,
+        product_id: it.product_id,
+        product_sku: it.product_sku || prod?.sku || 'SKU',
+        product_name: it.product_name || prod?.name || 'Product',
+        unit: it.unit || prod?.unit || 'Bag',
+        unit_price: price,
+        quantity: qty,
+        line_total: lineTotal
+      };
+    });
+
+    const subtotal = Number(orderData.subtotal || computedSubtotal);
+    const discVal = Number(orderData.discount_value || 0);
+    let discountAmount = Number(orderData.discount_amount || 0);
+    if (!discountAmount && discVal > 0) {
+      discountAmount = orderData.discount_type === 'percent' ? (subtotal * discVal) / 100 : discVal;
+    }
+    const finalAmount = Math.max(0, subtotal - discountAmount);
 
     const newOrder = {
       id: orderId,
       party_id: orderData.party_id,
-      order_date: orderData.order_date || getTodayStr(),
+      order_date: orderDate,
       status: orderData.status || 'draft',
-      subtotal: Number(orderData.subtotal || 0),
+      subtotal,
       discount_type: orderData.discount_type || 'flat',
-      discount_value: Number(orderData.discount_value || 0),
-      discount_amount: Number(orderData.discount_amount || 0),
-      final_amount: Number(orderData.final_amount || 0),
+      discount_value: discVal,
+      discount_amount: discountAmount,
+      final_amount: finalAmount,
       allocated_amount: 0,
       payment_status: 'unpaid',
-      due_date: orderData.due_date || null,
+      due_date: dueDate,
       notes: orderData.notes || null,
       created_by: userName || 'Admin'
     };
@@ -484,18 +585,7 @@ export const supabaseApi = {
     const { error: oErr } = await sb.from('sales_orders').insert(newOrder);
     if (oErr) throw new Error(oErr.message);
 
-    if (orderData.items && orderData.items.length > 0) {
-      const itemsToInsert = orderData.items.map((it: any) => ({
-        order_id: orderId,
-        product_id: it.product_id,
-        product_sku: it.product_sku || 'SKU',
-        product_name: it.product_name || 'Product',
-        unit: it.unit || 'Bag',
-        unit_price: Number(it.unit_price || 0),
-        quantity: Number(it.quantity || 1),
-        line_total: Number(it.unit_price || 0) * Number(it.quantity || 1)
-      }));
-
+    if (itemsToInsert.length > 0) {
       const { error: iErr } = await sb.from('order_items').insert(itemsToInsert);
       if (iErr) throw new Error(iErr.message);
     }
@@ -697,13 +787,28 @@ export const supabaseApi = {
     const paymentId = `RCP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const amount = Number(paymentData.amount || 0);
 
+    // Validate allocations if provided
+    const allocations = Array.isArray(paymentData.allocations) ? paymentData.allocations : [];
+    let totalAllocated = 0;
+    const validatedAllocations: { order_id: string; amount: number }[] = [];
+
+    for (const al of allocations) {
+      const alAmt = Number(al.amount || al.allocated_amount || 0);
+      if (alAmt > 0 && al.order_id) {
+        totalAllocated += alAmt;
+        validatedAllocations.push({ order_id: al.order_id, amount: alAmt });
+      }
+    }
+
+    const unallocatedAmount = Math.max(0, amount - totalAllocated);
+
     const newPayment = {
       id: paymentId,
       party_id: paymentData.party_id,
       payment_date: paymentData.payment_date || getTodayStr(),
       amount,
-      allocated_amount: 0,
-      unallocated_amount: amount,
+      allocated_amount: totalAllocated,
+      unallocated_amount: unallocatedAmount,
       payment_method: paymentData.payment_method || 'Cash',
       reference_no: paymentData.reference_no || null,
       bank_or_upi_details: paymentData.bank_or_upi_details || null,
@@ -715,25 +820,57 @@ export const supabaseApi = {
     const { error: pErr } = await sb.from('payments').insert(newPayment);
     if (pErr) throw new Error(pErr.message);
 
+    // Ledger credit for total payment amount
     await sb.from('party_ledger').insert({
       party_id: newPayment.party_id,
       entry_date: newPayment.payment_date,
       entry_type: 'PAYMENT',
       reference_id: paymentId,
-      description: `Payment Received (${newPayment.payment_method}) - Ref: ${newPayment.reference_no || paymentId}`,
+      description: `Payment Received (${newPayment.payment_method})${newPayment.reference_no ? ` - Ref: ${newPayment.reference_no}` : ''}`,
       debit: 0,
       credit: amount
     });
+
+    // Process order allocations
+    for (const valAl of validatedAllocations) {
+      await sb.from('payment_allocations').insert({
+        payment_id: paymentId,
+        order_id: valAl.order_id,
+        party_id: newPayment.party_id,
+        allocated_amount: valAl.amount,
+        notes: `Allocated from receipt ${paymentId}`
+      });
+
+      const { data: ord } = await sb.from('sales_orders').select('allocated_amount, final_amount').eq('id', valAl.order_id).single();
+      if (ord) {
+        const newAlloc = (Number(ord.allocated_amount) || 0) + valAl.amount;
+        const newStatus = newAlloc >= (Number(ord.final_amount) - 0.01) ? 'paid' : 'partially_paid';
+        await sb.from('sales_orders').update({
+          allocated_amount: newAlloc,
+          payment_status: newStatus
+        }).eq('id', valAl.order_id);
+      }
+    }
 
     await sb.from('audit_logs').insert({
       entity_type: 'PAYMENT',
       entity_id: paymentId,
       action: 'RECORD',
-      details: `Recorded payment ${paymentId} of ₹${amount} via ${newPayment.payment_method}`,
+      details: `Recorded payment ${paymentId} of ₹${amount} via ${newPayment.payment_method}. Allocated: ₹${totalAllocated}, Unallocated: ₹${unallocatedAmount}`,
       performed_by: userName || 'Admin'
     });
 
-    return { success: true, message: 'Payment recorded successfully', data: { id: paymentId } };
+    return {
+      success: true,
+      message: 'Payment recorded and posted successfully!',
+      data: {
+        id: paymentId,
+        receipt_id: paymentId,
+        amount,
+        allocated_amount: totalAllocated,
+        unallocated_amount: unallocatedAmount
+      }
+    };
   },
 
   allocatePayment: async (id: string, allocations: any[], userName: string) => {
@@ -775,13 +912,39 @@ export const supabaseApi = {
     const { data: pay, error: pErr } = await sb.from('payments').select('*').eq('id', id).single();
     if (pErr) throw new Error(pErr.message);
 
+    if (pay.status === 'reversed') {
+      throw new Error('Payment is already reversed.');
+    }
+
+    // 1. Rollback order allocations
+    const { data: allocations } = await sb.from('payment_allocations').select('*').eq('payment_id', id);
+    if (allocations && allocations.length > 0) {
+      for (const al of allocations) {
+        const { data: ord } = await sb.from('sales_orders').select('allocated_amount, final_amount').eq('id', al.order_id).single();
+        if (ord) {
+          const newAlloc = Math.max(0, (Number(ord.allocated_amount) || 0) - Number(al.allocated_amount || 0));
+          const newStatus = newAlloc <= 0.01 ? 'unpaid' : 'partially_paid';
+          await sb.from('sales_orders').update({
+            allocated_amount: newAlloc,
+            payment_status: newStatus
+          }).eq('id', al.order_id);
+        }
+      }
+      // Delete allocations
+      await sb.from('payment_allocations').delete().eq('payment_id', id);
+    }
+
+    // 2. Mark payment as reversed
     await sb.from('payments').update({
       status: 'reversed',
+      allocated_amount: 0,
+      unallocated_amount: 0,
       reversal_reason: reason,
       reversed_at: new Date().toISOString(),
       reversed_by: userName || 'Admin'
     }).eq('id', id);
 
+    // 3. Post DEBIT entry to party ledger to restore party outstanding balance
     await sb.from('party_ledger').insert({
       party_id: pay.party_id,
       entry_date: getTodayStr(),

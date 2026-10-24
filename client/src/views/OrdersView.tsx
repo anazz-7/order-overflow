@@ -9,7 +9,6 @@ import {
   Copy,
   FileText,
   CheckCircle2,
-  MapPin,
   Truck
 } from 'lucide-react';
 import { api } from '../api';
@@ -54,13 +53,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   // Create Order Form State
   const [formPartyId, setFormPartyId] = useState('');
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formDiscountType, setFormDiscountType] = useState<'flat' | 'percent'>('flat');
   const [formDiscountValue, setFormDiscountValue] = useState('0');
   const [formNotes, setFormNotes] = useState('');
   const [catalogCategory, setCatalogCategory] = useState<string>('all');
   const [formLines, setFormLines] = useState<
-    { product_id: string; quantity: number; unit_price: number; unit: string; line_total: number; original_price?: number; price_changed?: boolean }[]
+    { product_id: string; product_name?: string; product_sku?: string; quantity: number; unit_price: number; unit: string; line_total: number; original_price?: number; price_changed?: boolean }[]
   >([]);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [repeatDiffWarning, setRepeatDiffWarning] = useState<boolean>(false);
@@ -134,6 +133,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         ...formLines,
         {
           product_id: prod.id,
+          product_name: prod.name,
+          product_sku: prod.sku,
           quantity: prod.min_order_qty || 1,
           unit_price: prod.selling_price,
           unit: prod.unit,
@@ -190,15 +191,23 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         party_id: formPartyId,
         order_date: formDate,
         status,
+        subtotal,
         discount_type: formDiscountType,
         discount_value: numDiscVal,
+        discount_amount: discountAmount,
+        final_amount: finalOrderValue,
         notes: formNotes,
-        items: formLines.map(l => ({
-          product_id: l.product_id,
-          quantity: l.quantity,
-          unit_price: l.unit_price,
-          unit: l.unit
-        }))
+        items: formLines.map(l => {
+          const prod = products.find(p => p.id === l.product_id);
+          return {
+            product_id: l.product_id,
+            product_name: l.product_name || prod?.name || 'Product',
+            product_sku: l.product_sku || prod?.sku || 'SKU',
+            quantity: l.quantity,
+            unit_price: l.unit_price,
+            unit: l.unit
+          };
+        })
       }, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
 
       onShowToast('success', res.message, `Order Reference: ${res.data.id}`);
@@ -233,21 +242,25 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     try {
       const res = await api.getRepeatOrderData(orderId);
       const data = res.data;
+      if (!data) return;
 
-      setFormPartyId(data.party_id);
+      setFormPartyId(data.party_id || '');
       setFormDate(new Date().toISOString().split('T')[0]);
-      setFormNotes(data.notes);
-      setFormLines(data.items.map((it: any) => ({
+      setFormNotes(data.notes || '');
+      const repeatItems = (data.items || []).map((it: any) => ({
         product_id: it.product_id,
+        product_name: it.product_name,
+        product_sku: it.product_sku,
         quantity: it.quantity,
         unit_price: it.unit_price,
         unit: it.unit,
         line_total: it.line_total,
         original_price: it.original_price,
         price_changed: it.price_changed
-      })));
+      }));
+      setFormLines(repeatItems);
 
-      setRepeatDiffWarning(data.price_changes_detected);
+      setRepeatDiffWarning(Boolean(data.price_changes_detected));
       setActiveOrderDetails(null);
       setIsCreateModalOpen(true);
 
