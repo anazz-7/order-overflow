@@ -34,7 +34,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return data;
 }
 
-export const api = {
+import { isSupabaseConfigured } from './supabase';
+import { supabaseApi } from './supabaseApi';
+
+const httpApi = {
   // Health
   getHealth: () => request<{ status: string; app: string; business: string }>('/health'),
 
@@ -190,3 +193,5 @@ export const api = {
     return request<{ success: boolean; data: any[] }>(`/audit?${q}`);
   }
 };
+
+export const api = (isSupabaseConfigured ? supabaseApi : httpApi) as typeof httpApi;
