@@ -585,7 +585,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <button
                     onClick={() => {
-                      api.getPayment(pay.id).then(r => setActiveReceiptPayment(r.data));
+                      api.getPayment(pay.id)
+                        .then(r => setActiveReceiptPayment(r.data || pay))
+                        .catch(() => setActiveReceiptPayment(pay));
                     }}
                     className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
@@ -694,7 +696,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => {
-                            api.getPayment(pay.id).then(r => setActiveReceiptPayment(r.data));
+                            api.getPayment(pay.id)
+                              .then(r => setActiveReceiptPayment(r.data || pay))
+                              .catch(() => setActiveReceiptPayment(pay));
                           }}
                           className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
                           title="Print / View Receipt"

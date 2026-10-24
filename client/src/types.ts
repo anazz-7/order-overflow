@@ -105,6 +105,7 @@ export interface PaymentAllocation {
   order_id: string;
   party_id: string;
   allocated_amount: number;
+  amount?: number;
   notes?: string;
   order_date?: string;
   order_total?: number;

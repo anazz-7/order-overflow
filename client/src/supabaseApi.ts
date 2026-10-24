@@ -813,12 +813,27 @@ export const supabaseApi = {
     `).eq('id', id).single();
 
     if (error) throw new Error(error.message);
+
+    let partyBalance: number | undefined = undefined;
+    if (data.party_id) {
+      try {
+        const stmtRes = await supabaseApi.getPartyStatement(data.party_id);
+        partyBalance = stmtRes?.data?.closing_balance;
+      } catch {
+        // Safe fallback
+      }
+    }
+
     return {
       success: true,
       data: {
         ...data,
-        party_name: data.party?.name,
-        party_area: data.party?.area
+        party_name: data.party?.name || data.party_name,
+        party_area: data.party?.area || data.party_area,
+        party_phone: data.party?.phone || data.party_phone,
+        party_contact_person: data.party?.contact_person || data.party_contact_person,
+        party_address: data.party?.address || data.party_address,
+        party_current_balance: partyBalance
       }
     };
   },
