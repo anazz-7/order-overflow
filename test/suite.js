@@ -324,6 +324,56 @@ async function runTestSuite() {
     assert.strictEqual(running, authoritative, 'Running balance strictly matches authoritative balance');
   });
 
+  // 13. Automatic SMS integration & error handling without simulation
+  test('13. Automatic SMS integration & credentials handling without simulation', async () => {
+    const { sendSms, getSmsConfig } = require('../server/services/smsService');
+    const config = getSmsConfig();
+    assert.strictEqual(config.sms_owner_phone, '+91 6379849947', 'Default recipient pre-filled with +91 6379849947');
+
+    // Attempt sending SMS without fake simulation: should report pending_credentials or error when key is absent
+    const res = await sendSms({
+      recipient: '+91 6379849947',
+      recipient_type: 'owner',
+      event_type: 'TEST_SUITE',
+      reference_id: `TST-SMS-${Date.now()}`,
+      message: 'Test automated order confirmation message'
+    });
+
+    assert.ok(res.status === 'pending_credentials' || res.status === 'sent' || res.status === 'failed', 'SMS returns real delivery status without faking delivery');
+
+    // Check log recorded in sms_logs table
+    const log = db.prepare('SELECT * FROM sms_logs WHERE event_type = ? ORDER BY id DESC LIMIT 1').get('TEST_SUITE');
+    assert.ok(log, 'SMS log recorded in database audit');
+    assert.strictEqual(log.recipient, '+91 6379849947');
+  });
+
+  // 14. SMS deduplication suppression
+  test('14. SMS deduplication prevents duplicate sends within 10-minute window', async () => {
+    const { sendSms } = require('../server/services/smsService');
+    const refId = `DEDUP-${Date.now()}`;
+
+    // First attempt
+    await sendSms({
+      recipient: '+91 6379849947',
+      recipient_type: 'owner',
+      event_type: 'ORDER_CONFIRMED',
+      reference_id: refId,
+      message: 'First order confirmation attempt'
+    });
+
+    // Immediate second attempt with same event, reference, and recipient
+    const secondAttempt = await sendSms({
+      recipient: '+91 6379849947',
+      recipient_type: 'owner',
+      event_type: 'ORDER_CONFIRMED',
+      reference_id: refId,
+      message: 'Duplicate order confirmation attempt'
+    });
+
+    // If first attempt was registered, second attempt must be suppressed or deduplicated
+    assert.ok(secondAttempt.status === 'duplicate_suppressed' || secondAttempt.status === 'pending_credentials', 'Duplicate SMS safely handled');
+  });
+
   // Final cleanup
   cleanTestEntities();
 

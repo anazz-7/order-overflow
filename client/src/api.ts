@@ -191,7 +191,22 @@ const httpApi = {
   getAuditLogs: (params?: { entity_type?: string; action?: string; search?: string; limit?: number }) => {
     const q = new URLSearchParams(params as any).toString();
     return request<{ success: boolean; data: any[] }>(`/audit?${q}`);
-  }
+  },
+
+  // SMS Automation
+  getSmsSettings: () => request<{ success: boolean; data: any }>('/sms/settings'),
+  updateSmsSettings: (settings: any, userName: string) =>
+    request<{ success: boolean; message: string }>('/sms/settings', {
+      method: 'POST',
+      body: JSON.stringify({ settings, user_name: userName })
+    }),
+  getSmsLogs: (limit: number = 50) =>
+    request<{ success: boolean; data: any[] }>(`/sms/logs?limit=${limit}`),
+  sendTestSms: (recipient: string, userName: string) =>
+    request<{ success: boolean; result: any }>('/sms/test', {
+      method: 'POST',
+      body: JSON.stringify({ recipient, user_name: userName })
+    })
 };
 
 export const api = (isSupabaseConfigured ? supabaseApi : httpApi) as typeof httpApi;

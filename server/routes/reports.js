@@ -30,7 +30,7 @@ router.get('/dashboard', (req, res) => {
     `).get(today, `${currentMonth}%`);
 
     // 3. Outstanding Balances
-    const parties = db.prepare('SELECT id, credit_limit FROM parties WHERE status = "active"').all();
+    const parties = db.prepare("SELECT id, credit_limit FROM parties WHERE status = 'active'").all();
     let totalOutstanding = 0;
     let partiesWithOutstanding = 0;
     let partiesOverLimit = 0;

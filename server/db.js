@@ -166,6 +166,21 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  -- SMS Automation Logs and Delivery Audit
+  CREATE TABLE IF NOT EXISTS sms_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient TEXT NOT NULL,
+    recipient_type TEXT NOT NULL DEFAULT 'owner',
+    event_type TEXT NOT NULL,
+    reference_id TEXT,
+    message TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    status TEXT NOT NULL,
+    response_payload TEXT,
+    error_message TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+  );
+
   -- Create helpful indexes for performance
   CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
   CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
@@ -179,6 +194,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_ledger_party ON party_ledger(party_id);
   CREATE INDEX IF NOT EXISTS idx_ledger_date ON party_ledger(entry_date);
   CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_sms_logs_reference ON sms_logs(reference_id);
+  CREATE INDEX IF NOT EXISTS idx_sms_logs_created ON sms_logs(created_at);
 `);
 
 // Helper to record audit log
@@ -188,6 +205,31 @@ function recordAuditLog(entityType, entityId, action, details, performedBy = 'Ad
     VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))
   `);
   stmt.run(entityType, entityId, action, typeof details === 'object' ? JSON.stringify(details) : details, performedBy);
+}
+
+// Helper to record SMS delivery log
+function recordSmsLog({ recipient, recipient_type = 'owner', event_type, reference_id = null, message, provider, status, response_payload = null, error_message = null }) {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO sms_logs (recipient, recipient_type, event_type, reference_id, message, provider, status, response_payload, error_message, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+    `);
+    const info = stmt.run(
+      recipient,
+      recipient_type,
+      event_type,
+      reference_id,
+      message,
+      provider,
+      status,
+      typeof response_payload === 'object' ? JSON.stringify(response_payload) : response_payload,
+      error_message
+    );
+    return info.lastInsertRowid;
+  } catch (err) {
+    console.error('[SMS Log DB Error]', err.message);
+    return null;
+  }
 }
 
 // Calculate true party outstanding balance directly from authoritative transactions
@@ -205,13 +247,12 @@ function getPartyBalance(partyId) {
   `).get(partyId);
 
   // Closing balance = Opening Balance + Posted Debits - Posted Credits
-  // Note: If opening_balance is also an entry in party_ledger, we avoid double counting.
-  // In our model, opening_balance is seeded into party_ledger as an OPENING_BALANCE debit entry.
   return (totals.total_debit - totals.total_credit);
 }
 
 module.exports = {
   db,
   recordAuditLog,
+  recordSmsLog,
   getPartyBalance
 };

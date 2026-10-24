@@ -12,7 +12,12 @@ import {
   UserCheck,
   AlertTriangle,
   Download,
-  Smartphone
+  Smartphone,
+  MessageSquare,
+  Send,
+  Key,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { api } from '../api';
 import { AuditLog, UserRole } from '../types';
@@ -33,9 +38,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   businessSettings,
   onReloadSettings
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'audit'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'sms' | 'audit'>('profile');
   const [isSaving, setIsSaving] = useState(false);
   const { isInstallable, isInstalled, installApp } = usePwa();
+
+  // SMS Configuration State
+  const [smsSettings, setSmsSettings] = useState({
+    sms_enabled: 'true',
+    sms_owner_phone: '+91 6379849947',
+    sms_notify_owner_on_order: 'true',
+    sms_notify_customer_on_order: 'false',
+    sms_provider: 'FAST2SMS',
+    sms_sender_id: 'BRKKTH',
+    sms_dlt_order_template_id: '',
+    fast2sms_available: false,
+    msg91_available: false
+  });
+  const [smsLogs, setSmsLogs] = useState<any[]>([]);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [isSavingSms, setIsSavingSms] = useState(false);
+  const [isSendingTestSms, setIsSendingTestSms] = useState(false);
+  const [testSmsStatus, setTestSmsStatus] = useState<any>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -107,6 +130,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const fetchSmsData = async () => {
+    setSmsLoading(true);
+    try {
+      const [settingsRes, logsRes] = await Promise.all([
+        api.getSmsSettings(),
+        api.getSmsLogs(50)
+      ]);
+      if (settingsRes.data) {
+        setSmsSettings(prev => ({
+          ...prev,
+          ...settingsRes.data,
+          sms_owner_phone: settingsRes.data.sms_owner_phone || '+91 6379849947'
+        }));
+      }
+      setSmsLogs(logsRes.data || []);
+    } catch (err: any) {
+      console.warn('Could not load SMS settings:', err.message);
+    } finally {
+      setSmsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'sms') {
+      fetchSmsData();
+    }
+  }, [activeTab]);
+
+  const handleSaveSmsSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSms(true);
+    try {
+      await api.updateSmsSettings(smsSettings, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+      onShowToast('success', 'SMS Settings Saved', 'Automatic SMS integration parameters updated.');
+    } catch (err: any) {
+      onShowToast('error', 'Failed to save SMS settings', err.message);
+    } finally {
+      setIsSavingSms(false);
+    }
+  };
+
+  const handleSendTestSms = async () => {
+    setIsSendingTestSms(true);
+    setTestSmsStatus(null);
+    try {
+      const res = await api.sendTestSms(smsSettings.sms_owner_phone || '+91 6379849947', userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+      setTestSmsStatus(res.result || res);
+      if (res.result?.status === 'sent') {
+        onShowToast('success', 'Test SMS Sent', `Delivered to ${smsSettings.sms_owner_phone}`);
+      } else if (res.result?.status === 'pending_credentials') {
+        onShowToast('warning', 'Configuration Required', res.result?.error || 'SMS API credentials not set in server environment variables.');
+      } else {
+        onShowToast('info', 'SMS Status', `Status: ${res.result?.status || 'dispatched'}`);
+      }
+      const logsRes = await api.getSmsLogs(50);
+      setSmsLogs(logsRes.data || []);
+    } catch (err: any) {
+      onShowToast('error', 'Test SMS Failed', err.message);
+      setTestSmsStatus({ status: 'failed', error: err.message });
+    } finally {
+      setIsSendingTestSms(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -141,10 +228,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* Settings Navigation Tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-6 text-xs font-semibold">
+      <div className="border-b border-slate-200 flex items-center gap-6 text-xs font-semibold overflow-x-auto">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'profile'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-900'
@@ -154,8 +241,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Business Profile & Receipts
         </button>
         <button
+          onClick={() => setActiveTab('sms')}
+          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'sms'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          SMS Automation
+        </button>
+        <button
           onClick={() => setActiveTab('roles')}
-          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'roles'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-900'
@@ -166,7 +264,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('audit')}
-          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
             activeTab === 'audit'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-900'
@@ -321,6 +419,312 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </div>
       </>)}
+
+      {/* Tab: SMS Automation Configuration & Logs */}
+      {activeTab === 'sms' && (
+        <div className="space-y-6 max-w-4xl">
+          {/* SMS Configuration Form */}
+          <form onSubmit={handleSaveSmsSettings} className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-2xs space-y-6 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-indigo-600" />
+                  Automated SMS Dispatch Configuration
+                </h3>
+                <p className="text-slate-500 mt-0.5">
+                  Automate transactional alerts on order confirmation and invoice generation via Fast2SMS, MSG91, or custom DLT routes.
+                </p>
+              </div>
+
+              {/* Master SMS Toggle */}
+              <label className="flex items-center gap-2.5 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                <input
+                  type="checkbox"
+                  checked={smsSettings.sms_enabled === 'true'}
+                  onChange={e => setSmsSettings({ ...smsSettings, sms_enabled: e.target.checked ? 'true' : 'false' })}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                />
+                <span className="font-semibold text-slate-800">Enable SMS Automation</span>
+              </label>
+            </div>
+
+            {/* Provider Credential Status Badges */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-800">Fast2SMS Gateway</p>
+                  <p className="text-[11px] text-slate-400 font-mono">FAST2SMS_API_KEY</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  smsSettings.fast2sms_available
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  {smsSettings.fast2sms_available ? 'Configured' : 'Needs Server Env'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                <div>
+                  <p className="font-bold text-slate-800">MSG91 Flow API</p>
+                  <p className="text-[11px] text-slate-400 font-mono">MSG91_AUTH_KEY</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  smsSettings.msg91_available
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  {smsSettings.msg91_available ? 'Configured' : 'Needs Server Env'}
+                </span>
+              </div>
+            </div>
+
+            {/* Recipient Numbers & Separation */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 flex items-center justify-between">
+                  <span>Business Owner Recipient Number *</span>
+                  <span className="text-[10px] text-indigo-600 font-normal">Default Configured</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={smsSettings.sms_owner_phone}
+                  onChange={e => setSmsSettings({ ...smsSettings, sms_owner_phone: e.target.value })}
+                  placeholder="+91 6379849947"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-mono font-bold text-slate-900"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Pre-filled default: <strong className="text-slate-600">+91 6379849947</strong>. Receives wholesale sales alerts.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">SMS Gateway Provider</label>
+                <select
+                  value={smsSettings.sms_provider}
+                  onChange={e => setSmsSettings({ ...smsSettings, sms_provider: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-medium"
+                >
+                  <option value="FAST2SMS">Fast2SMS (Quick Transactional / DLT)</option>
+                  <option value="MSG91">MSG91 (Flow / Transactional API)</option>
+                  <option value="MOCK">Mock Sandbox (Local Logging / Verification)</option>
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  Select active provider. Server environment variables are loaded securely server-side.
+                </p>
+              </div>
+            </div>
+
+            {/* Notification Routing & Consent Controls */}
+            <div className="space-y-3 pt-3 border-t border-slate-100">
+              <p className="font-bold text-slate-800 text-xs">Event Triggers & Recipient Routing</p>
+              
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smsSettings.sms_notify_owner_on_order === 'true'}
+                    onChange={e => setSmsSettings({ ...smsSettings, sms_notify_owner_on_order: e.target.checked ? 'true' : 'false' })}
+                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-semibold text-slate-900">Notify Business Owner on Confirmed Orders</span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Sends immediate wholesale summary to {smsSettings.sms_owner_phone || '+91 6379849947'} whenever an order is confirmed or billed.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smsSettings.sms_notify_customer_on_order === 'true'}
+                    onChange={e => setSmsSettings({ ...smsSettings, sms_notify_customer_on_order: e.target.checked ? 'true' : 'false' })}
+                    className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-semibold text-slate-900">Notify Customer (Retail Party) on Confirmed Orders</span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Sends order confirmation to the customer's registered phone number. Kept separate from owner alerts for Indian DLT & consent compliance.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Regulatory & DLT Parameters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">DLT Sender ID / Header</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={smsSettings.sms_sender_id}
+                  onChange={e => setSmsSettings({ ...smsSettings, sms_sender_id: e.target.value.toUpperCase() })}
+                  placeholder="e.g. BRKKTH"
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white uppercase font-mono"
+                />
+                <p className="text-[10px] text-slate-400">6-character approved Indian DLT Header</p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">DLT Order Template ID (Optional)</label>
+                <input
+                  type="text"
+                  value={smsSettings.sms_dlt_order_template_id}
+                  onChange={e => setSmsSettings({ ...smsSettings, sms_dlt_order_template_id: e.target.value })}
+                  placeholder="e.g. 170716182901928472"
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-mono"
+                />
+                <p className="text-[10px] text-slate-400">Approved DLT Content Template ID</p>
+              </div>
+            </div>
+
+            {/* Test Send Feedback Banner */}
+            {testSmsStatus && (
+              <div className={`p-3.5 rounded-lg border text-xs ${
+                testSmsStatus.status === 'sent'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : testSmsStatus.status === 'pending_credentials'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}>
+                <div className="flex items-center gap-2 font-bold">
+                  {testSmsStatus.status === 'sent' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : testSmsStatus.status === 'pending_credentials' ? (
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                  )}
+                  <span>SMS Status: {testSmsStatus.status.toUpperCase()}</span>
+                </div>
+                <p className="mt-1 text-[11px]">
+                  {testSmsStatus.error || (testSmsStatus.status === 'sent' ? 'Test message successfully dispatched through gateway!' : 'Test dispatch processed.')}
+                </p>
+              </div>
+            )}
+
+            {/* Actions Bar */}
+            <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleSendTestSms}
+                disabled={isSendingTestSms}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5 text-indigo-600" />
+                {isSendingTestSms ? 'Dispatching Test...' : `Send Test SMS to ${smsSettings.sms_owner_phone || '+91 6379849947'}`}
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSavingSms}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                {isSavingSms ? 'Saving...' : 'Save SMS Configuration'}
+              </button>
+            </div>
+          </form>
+
+          {/* SMS Audit & Delivery Log Card */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-2xs space-y-4 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-600" />
+                  SMS Delivery & Idempotency Audit Log
+                </h3>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  Real-time record of all triggered SMS attempts, deduplication events, and delivery gateway responses.
+                </p>
+              </div>
+              <button
+                onClick={fetchSmsData}
+                disabled={smsLoading}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${smsLoading ? 'animate-spin' : ''}`} />
+                Refresh Logs
+              </button>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-200/80 rounded-lg">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 border-b border-slate-200/80 text-slate-600 font-semibold">
+                  <tr>
+                    <th className="py-2.5 px-3 w-36">Timestamp</th>
+                    <th className="py-2.5 px-3 w-32">Recipient</th>
+                    <th className="py-2.5 px-3 w-28">Type</th>
+                    <th className="py-2.5 px-3 w-32">Event</th>
+                    <th className="py-2.5 px-3 w-24">Provider</th>
+                    <th className="py-2.5 px-3 w-28 text-center">Status</th>
+                    <th className="py-2.5 px-3">Message Content</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {smsLoading && smsLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">Loading SMS logs...</td>
+                    </tr>
+                  ) : smsLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">No SMS delivery records logged yet.</td>
+                    </tr>
+                  ) : (
+                    smsLogs.map((log: any) => (
+                      <tr key={log.id} className="hover:bg-slate-50/60">
+                        <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap font-mono text-[11px]">
+                          {log.created_at}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-medium text-slate-900 whitespace-nowrap">
+                          {log.recipient}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            log.recipient_type === 'owner' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {log.recipient_type}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap font-medium">
+                          {log.event_type}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                          {log.provider}
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            log.status === 'sent'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : log.status === 'duplicate_suppressed'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : log.status === 'pending_credentials'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate" title={log.message}>
+                          {log.message}
+                          {log.error_message && (
+                            <span className="block text-[10px] text-rose-600 truncate mt-0.5">
+                              Error: {log.error_message}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab 2: Role Permissions */}
       {activeTab === 'roles' && (

@@ -188,7 +188,7 @@ router.get('/export/:format', (req, res) => {
     const { format } = req.params;
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const parties = db.prepare('SELECT * FROM parties WHERE status = "active" ORDER BY name ASC').all();
+    const parties = db.prepare("SELECT * FROM parties WHERE status = 'active' ORDER BY name ASC").all();
     const rows = parties.map(p => {
       const balance = getPartyBalance(p.id);
       const aging = calculatePartyAging(p.id, todayStr);

@@ -1,18 +1,33 @@
-import React from 'react';
-import { Printer, X, Download, CheckCircle2, Building2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Printer, X, Download, CheckCircle2, Building2, Share2, Check, MessageSquare } from 'lucide-react';
 import { Payment } from '../types';
 
 interface PrintableReceiptProps {
   payment: Payment;
   businessSettings?: any;
   onClose: () => void;
+  onShowToast?: (type: 'success' | 'error' | 'info' | 'warning', title: string, message?: string) => void;
 }
 
 export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
   payment,
   businessSettings,
-  onClose
+  onClose,
+  onShowToast
 }) => {
+  const [copied, setCopied] = useState(false);
+
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -23,31 +38,112 @@ export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
   const phone = businessSettings?.phone || '+91 94431 82910';
   const receiptFooter = businessSettings?.receipt_footer || 'Thank you for your business. For orders & balance queries, call +91 94431 82910.';
 
+  const getShareText = () => {
+    return (
+      `*PAYMENT RECEIPT #${payment.id} — ${businessName}*\n` +
+      `--------------------------------\n` +
+      `*Received From:* ${payment.party_name}\n` +
+      `*Date:* ${payment.payment_date}\n` +
+      `*Amount:* ₹${(payment.amount || 0).toLocaleString('en-IN')}\n` +
+      `*Payment Mode:* ${payment.payment_method}\n` +
+      (payment.reference_no ? `*Ref / UTR:* ${payment.reference_no}\n` : '') +
+      `*Status:* ${payment.status.toUpperCase()}\n` +
+      `--------------------------------\n` +
+      `Thank you for your prompt payment!\n_${tagline}_`
+    );
+  };
+
+  const handleNativeShare = async () => {
+    const text = getShareText();
+    const title = `Receipt #${payment.id} - ${payment.party_name}`;
+    
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url: window.location.href
+        });
+        if (onShowToast) onShowToast('success', 'Shared Successfully', 'Payment receipt details shared.');
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+        if (onShowToast) {
+          onShowToast('success', 'Copied to Clipboard', 'Receipt details copied to clipboard.');
+        }
+      }
+    } catch {
+      if (onShowToast) onShowToast('error', 'Clipboard Error', 'Could not copy to clipboard.');
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    const partyPhone = payment.party_phone || '';
+    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
+    const phoneParam = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const msg = getShareText();
+    const url = phoneParam ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-8">
-        {/* Top Action Bar (hidden in print) */}
-        <div className="no-print bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span className="font-semibold text-sm">Payment Receipt #{payment.id}</span>
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-4 sm:my-8 relative">
+        {/* Sticky Top Action Bar (hidden in print, stays pinned on scroll) */}
+        <div className="no-print sticky top-0 z-30 bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shadow-md">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
+            <span className="font-semibold text-xs sm:text-sm truncate">Payment Receipt #{payment.id}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <button
+              onClick={handleWhatsAppShare}
+              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Share Receipt on WhatsApp"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
+            <button
+              onClick={handleNativeShare}
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Share or Copy Receipt"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400" />}
+              <span>{copied ? 'Copied!' : 'Share'}</span>
+            </button>
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Print Receipt"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print Receipt
+              <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close receipt preview"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 ml-1"
+              title="Close Preview (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
+
 
         {/* Printable Receipt Paper Container */}
         <div id="receipt-print-area" className="p-8 sm:p-10 text-slate-900 bg-white">

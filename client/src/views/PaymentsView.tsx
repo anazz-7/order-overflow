@@ -164,6 +164,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   // Submit payment record
   const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingPayment) return;
     if (!formPartyId) {
       onShowToast('error', 'Validation error', 'Please select a retail party.');
       return;
@@ -447,9 +448,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="flex items-center gap-3 w-full md:w-auto flex-1">
-          <div className="relative flex-1 max-w-sm">
+      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto flex-1">
+          <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-xs">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
@@ -464,7 +465,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <select
             value={selectedPartyFilter}
             onChange={e => setSelectedPartyFilter(e.target.value)}
-            className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white"
+            className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white flex-1 sm:flex-initial"
           >
             <option value="all">All Parties</option>
             {parties.map(p => (
@@ -475,7 +476,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <select
             value={selectedMethodFilter}
             onChange={e => setSelectedMethodFilter(e.target.value)}
-            className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white"
+            className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white flex-1 sm:flex-initial"
           >
             <option value="all">All Methods</option>
             <option value="Cash">Cash</option>
@@ -486,12 +487,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           </select>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto justify-between sm:justify-start">
           <input
             type="date"
             value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
-            className="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600"
+            className="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 flex-1 sm:flex-initial"
             title="Start Date"
           />
           <span className="text-xs text-slate-400">to</span>
@@ -499,7 +500,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             type="date"
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
-            className="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600"
+            className="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 flex-1 sm:flex-initial"
             title="End Date"
           />
           {(search || selectedPartyFilter !== 'all' || selectedMethodFilter !== 'all' || dateFrom || dateTo) && (
@@ -512,7 +513,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 setDateFrom('');
                 setDateTo('');
               }}
-              className="text-xs text-indigo-600 hover:underline px-2"
+              className="text-xs text-indigo-600 hover:underline px-2 cursor-pointer"
             >
               Reset
             </button>
@@ -520,9 +521,104 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
         </div>
       </div>
 
-      {/* Payments Ledger Table */}
+      {/* Payments Ledger Container */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile View: High-density responsive Payment Cards (< md) */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="py-12 text-center text-slate-400 text-xs">Loading payment ledger...</div>
+          ) : payments.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <CreditCard className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              No payments found matching the selected filters.
+            </div>
+          ) : (
+            payments.map(pay => (
+              <div key={pay.id} className="p-3.5 space-y-2.5 hover:bg-slate-50/70 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono font-bold text-xs text-indigo-700 truncate">
+                      {pay.id}
+                    </span>
+                    <span className="text-[11px] text-slate-400 shrink-0">
+                      • {pay.payment_date}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                      {pay.payment_method}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      pay.status === 'posted'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {pay.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-900 text-sm truncate">{pay.party_name}</p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      {pay.party_area} {pay.reference_no ? `• Ref: ${pay.reference_no}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-bold text-slate-900">
+                      ₹{(pay.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </p>
+                    {(pay.allocated_amount || 0) > 0 ? (
+                      <p className="text-[10px] text-emerald-700 font-medium">
+                        Allocated: ₹{(pay.allocated_amount || 0).toLocaleString('en-IN')}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-amber-700 font-medium">Unallocated Credit</p>
+                    )}
+                    {(pay.unallocated_amount || 0) > 0 && (pay.allocated_amount || 0) > 0 && (
+                      <p className="text-[10px] text-slate-400">Rem: ₹{(pay.unallocated_amount || 0).toLocaleString('en-IN')}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      api.getPayment(pay.id).then(r => setActiveReceiptPayment(r.data));
+                    }}
+                    className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Receipt</span>
+                  </button>
+                  {pay.status === 'posted' && (pay.unallocated_amount || 0) > 0 && (
+                    <button
+                      onClick={() => handleOpenAllocateModal(pay)}
+                      className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Allocate</span>
+                    </button>
+                  )}
+                  {pay.status === 'posted' && (
+                    <button
+                      onClick={() => handleOpenReverse(pay)}
+                      className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors min-h-[40px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                      title="Reverse Payment"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Reverse</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop View: Full Data Table (>= md) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-50 border-b border-slate-200/80 text-slate-600 font-semibold">
               <tr>
@@ -1015,6 +1111,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           payment={activeReceiptPayment}
           businessSettings={businessSettings}
           onClose={() => setActiveReceiptPayment(null)}
+          onShowToast={onShowToast}
         />
       )}
     </div>

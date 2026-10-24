@@ -610,6 +610,27 @@ export const supabaseApi = {
       performed_by: userName || 'Admin'
     });
 
+    // If order created as confirmed, asynchronously trigger SMS notification
+    if (newOrder.status === 'confirmed') {
+      try {
+        fetch('/api/sms/send-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            order_data: {
+              id: orderId,
+              party_id: newOrder.party_id,
+              party_name: party?.name,
+              party_phone: party?.phone,
+              final_amount: newOrder.final_amount,
+              order_date: newOrder.order_date
+            }
+          })
+        }).catch(() => {});
+      } catch {}
+    }
+
     return { success: true, message: 'Order created successfully', data: { id: orderId } };
   },
 
@@ -637,6 +658,26 @@ export const supabaseApi = {
       details: `Confirmed sales order ${id} for ₹${order.final_amount}`,
       performed_by: userName || 'Admin'
     });
+
+    // Asynchronously trigger SMS notification
+    try {
+      const { data: p } = await sb.from('parties').select('name, phone').eq('id', order.party_id).single();
+      fetch('/api/sms/send-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: id,
+          order_data: {
+            id,
+            party_id: order.party_id,
+            party_name: p?.name,
+            party_phone: p?.phone,
+            final_amount: order.final_amount,
+            order_date: order.order_date
+          }
+        })
+      }).catch(() => {});
+    } catch {}
 
     return { success: true, message: 'Order confirmed successfully' };
   },
@@ -1382,5 +1423,63 @@ export const supabaseApi = {
     }
 
     return { success: true, data: logs };
+  },
+
+  // SMS Automation
+  getSmsSettings: async () => {
+    try {
+      const res = await fetch('/api/sms/settings');
+      if (res.ok) return await res.json();
+    } catch {}
+    // Fallback reading from Supabase business_settings
+    const sb = getClient();
+    const { data } = await sb.from('business_settings').select('*');
+    const settings: Record<string, string> = {
+      sms_enabled: 'true',
+      sms_owner_phone: '+91 6379849947',
+      sms_notify_owner_on_order: 'true',
+      sms_notify_customer_on_order: 'false',
+      sms_provider: 'FAST2SMS'
+    };
+    (data || []).forEach((row: any) => {
+      if (row.key.startsWith('sms_')) settings[row.key] = row.value;
+    });
+    return { success: true, data: settings };
+  },
+
+  updateSmsSettings: async (settings: any, userName: string) => {
+    try {
+      const res = await fetch('/api/sms/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings, user_name: userName })
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    // Fallback saving to Supabase business_settings
+    const sb = getClient();
+    for (const [key, value] of Object.entries(settings)) {
+      await sb.from('business_settings').upsert({ key, value: String(value) });
+    }
+    return { success: true, message: 'SMS settings saved' };
+  },
+
+  getSmsLogs: async (limit: number = 50) => {
+    try {
+      const res = await fetch(`/api/sms/logs?limit=${limit}`);
+      if (res.ok) return await res.json();
+    } catch {}
+    return { success: true, data: [] };
+  },
+
+  sendTestSms: async (recipient: string, userName: string) => {
+    const res = await fetch('/api/sms/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient, user_name: userName })
+    });
+    if (!res.ok) throw new Error(`Test SMS failed (${res.status})`);
+    return await res.json();
   }
 };
+

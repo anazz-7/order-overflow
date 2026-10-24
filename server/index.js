@@ -24,6 +24,7 @@ app.use('/api/outstanding', require('./routes/outstanding'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/sms', require('./routes/sms'));
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,35 +1,45 @@
-import React from 'react';
-import { Printer, X, CheckCircle2, FileText, MessageSquare } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Printer, X, FileText, MessageSquare, Share2, Check, Copy } from 'lucide-react';
 import { SalesOrder } from '../types';
 
 interface PrintableOrderSlipProps {
   order: SalesOrder;
   businessSettings?: any;
   onClose: () => void;
+  onShowToast?: (type: 'success' | 'error' | 'info' | 'warning', title: string, message?: string) => void;
 }
 
 export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
   order,
   businessSettings,
-  onClose
+  onClose,
+  onShowToast
 }) => {
+  const [copied, setCopied] = useState(false);
+
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
 
-  const handleWhatsAppShare = () => {
-    const partyPhone = order.party_phone || '';
-    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
-    const phoneParam = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-
+  const getShareText = () => {
     const itemsText = (order.items || [])
       .map(it => `• ${it.product_name} x ${it.quantity} ${it.unit || ''} = ₹${(it.line_total || 0).toLocaleString('en-IN')}`)
       .join('\n');
 
-    const msg = 
-      `*SALES ORDER CONFIRMATION — ${businessSettings?.business_name || 'Barakkath Agencies'}*\n` +
+    return (
+      `*SALES ORDER #${order.id} — ${businessSettings?.business_name || 'Barakkath Agencies'}*\n` +
       `--------------------------------\n` +
-      `*Order ID:* #${order.id}\n` +
       `*Customer:* ${order.party_name}\n` +
       `*Date:* ${order.order_date}\n` +
       `*Status:* ${order.status.toUpperCase()}\n` +
@@ -39,8 +49,51 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
       `*Subtotal:* ₹${(order.subtotal || 0).toLocaleString('en-IN')}\n` +
       (order.discount_amount > 0 ? `*Discount:* -₹${(order.discount_amount || 0).toLocaleString('en-IN')}\n` : '') +
       `*Total Amount:* ₹${(order.final_amount || 0).toLocaleString('en-IN')}\n\n` +
-      `Thank you for your valued order!\n_${businessSettings?.tagline || 'Wholesale Distribution ERP'}_`;
+      `Thank you for your business!`
+    );
+  };
 
+  const handleNativeShare = async () => {
+    const text = getShareText();
+    const title = `Invoice #${order.id} - ${order.party_name}`;
+    
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url: window.location.href
+        });
+        if (onShowToast) onShowToast('success', 'Shared Successfully', 'Invoice details sent to sharing target.');
+        return;
+      } catch (err: any) {
+        // Fall through to clipboard if user dismissed or share failed
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+        if (onShowToast) {
+          onShowToast('success', 'Copied to Clipboard', 'Invoice summary copied to clipboard for sharing.');
+        }
+      } else {
+        if (onShowToast) onShowToast('info', 'Share Information', 'Use Print or WhatsApp to distribute this order slip.');
+      }
+    } catch {
+      if (onShowToast) onShowToast('error', 'Clipboard Error', 'Could not copy to clipboard.');
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    const partyPhone = order.party_phone || '';
+    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
+    const phoneParam = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const msg = getShareText();
     const url = phoneParam ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
@@ -51,38 +104,55 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
   const phone = businessSettings?.phone || '+91 94431 82910';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-8">
-        {/* Top Action Bar (hidden in print) */}
-        <div className="no-print bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-400" />
-            <span className="font-semibold text-sm">Sales Order Slip #{order.id}</span>
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-4 sm:my-8 relative">
+        {/* Sticky Top Action Bar (hidden in print, stays pinned on scroll) */}
+        <div className="no-print sticky top-0 z-30 bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shadow-md">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 shrink-0" />
+            <span className="font-semibold text-xs sm:text-sm truncate">Sales Order #{order.id}</span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button
               onClick={handleWhatsAppShare}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
-              title="Send Order Slip to Retailer via WhatsApp"
+              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Share via WhatsApp"
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span>WhatsApp</span>
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
+            <button
+              onClick={handleNativeShare}
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Share or Copy Invoice Link/Summary"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400" />}
+              <span>{copied ? 'Copied!' : 'Share'}</span>
             </button>
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Print Order Slip (Ctrl+P)"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print
+              <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close invoice preview"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 ml-1"
+              title="Close Preview (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
+
 
         {/* Printable Order Container */}
         <div id="order-print-area" className="p-8 sm:p-10 text-slate-900 bg-white">

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, recordAuditLog, getPartyBalance } = require('../db');
+const { dispatchOrderConfirmationSms } = require('../services/smsService');
 
 // Helper to generate unique order reference: BA-YYYYMMDD-XXX
 function generateOrderReference(orderDateStr) {
@@ -330,6 +331,18 @@ router.post('/', (req, res) => {
 
     orderTx();
 
+    // If order confirmed, asynchronously trigger automatic SMS notification (non-blocking)
+    if (status === 'confirmed') {
+      dispatchOrderConfirmationSms({
+        id: newOrderId,
+        party_id,
+        party_name: party.name,
+        party_phone: party.phone,
+        final_amount: finalAmount,
+        order_date
+      }).catch(err => console.error('[Order SMS Error]', err.message));
+    }
+
     res.status(201).json({
       success: true,
       message: status === 'confirmed' ? 'Order confirmed successfully!' : 'Order draft saved successfully!',
@@ -394,6 +407,17 @@ router.post('/:id/confirm', (req, res) => {
     });
 
     confirmTx();
+
+    // Asynchronously trigger automatic SMS notification (non-blocking)
+    const party = db.prepare('SELECT name, phone FROM parties WHERE id = ?').get(order.party_id);
+    dispatchOrderConfirmationSms({
+      id: order.id,
+      party_id: order.party_id,
+      party_name: party ? party.name : 'Customer',
+      party_phone: party ? party.phone : null,
+      final_amount: order.final_amount,
+      order_date: order.order_date
+    }).catch(err => console.error('[Order Confirm SMS Error]', err.message));
 
     res.json({ success: true, message: `Order ${id} confirmed successfully.` });
   } catch (error) {
