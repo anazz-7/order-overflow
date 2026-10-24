@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
+const dataDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -11,8 +11,12 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'orderflow.db');
 const db = new Database(dbPath);
 
-// Enable WAL mode & foreign keys for concurrency and integrity
-db.pragma('journal_mode = WAL');
+// Enable WAL mode (or MEMORY on serverless Vercel) & foreign keys
+if (process.env.VERCEL) {
+  db.pragma('journal_mode = MEMORY');
+} else {
+  db.pragma('journal_mode = WAL');
+}
 db.pragma('foreign_keys = ON');
 
 // Initialize database schema

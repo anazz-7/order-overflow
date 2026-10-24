@@ -47,10 +47,14 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(` ORDERFLOW PRO — Barakkath Agencies Wholesale System `);
-  console.log(` Backend server running at http://localhost:${PORT}`);
-  console.log(` Database: SQLite WAL mode (data/orderflow.db)       `);
-  console.log(`====================================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(` ORDERFLOW PRO — Barakkath Agencies Wholesale System `);
+    console.log(` Backend server running at http://localhost:${PORT}`);
+    console.log(` Database: SQLite WAL mode (data/orderflow.db)       `);
+    console.log(`====================================================`);
+  });
+}
+
+module.exports = app;
