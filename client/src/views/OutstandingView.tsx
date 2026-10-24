@@ -187,7 +187,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Total Receivables</span>
             <div className="text-2xl font-bold text-slate-900 mt-1">
-              ₹{summary.total_receivables.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(summary.total_receivables || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
             <span className="text-[10px] text-slate-400 mt-0.5 block">Total outstanding book value</span>
           </div>
@@ -195,7 +195,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Current / Not Due</span>
             <div className="text-2xl font-bold text-emerald-700 mt-1">
-              ₹{summary.current_outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(summary.current_outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
             <span className="text-[10px] text-emerald-600 mt-0.5 block font-medium">Within payment terms</span>
           </div>
@@ -203,7 +203,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
           <div className="bg-white p-4 rounded-xl border border-rose-200/80 shadow-2xs bg-rose-50/20">
             <span className="text-[11px] font-semibold text-rose-800 uppercase tracking-wider block">Overdue Outstanding</span>
             <div className="text-2xl font-bold text-rose-700 mt-1">
-              ₹{summary.overdue_outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(summary.overdue_outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
             <span className="text-[10px] text-rose-600 mt-0.5 block font-medium">Past payment terms</span>
           </div>
@@ -211,7 +211,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Parties with Balance</span>
             <div className="text-2xl font-bold text-slate-900 mt-1">
-              {summary.parties_with_balance}
+              {summary.parties_with_balance || 0}
             </div>
             <span className="text-[10px] text-slate-400 mt-0.5 block">Active debtor accounts</span>
           </div>
@@ -219,7 +219,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
           <div className="bg-white p-4 rounded-xl border border-amber-200/80 shadow-2xs bg-amber-50/20">
             <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider block">Exceeded Credit Limit</span>
             <div className="text-2xl font-bold text-amber-800 mt-1">
-              {summary.parties_over_limit}
+              {summary.parties_over_limit || 0}
             </div>
             <span className="text-[10px] text-amber-700 mt-0.5 block font-medium">High risk parties</span>
           </div>
@@ -316,30 +316,30 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
                     </td>
 
                     <td className="py-3 px-4 text-right text-slate-600 font-medium">
-                      ₹{p.credit_limit.toLocaleString('en-IN')}
+                      ₹{(p.credit_limit || 0).toLocaleString('en-IN')}
                     </td>
 
                     <td className="py-3 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                      <span className={p.outstanding_balance > 0 ? 'text-amber-800' : 'text-emerald-700'}>
-                        ₹{p.outstanding_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      <span className={(p.outstanding_balance || 0) > 0 ? 'text-amber-800' : 'text-emerald-700'}>
+                        ₹{(p.outstanding_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
 
                     <td className="py-3 px-4 text-right text-slate-600 whitespace-nowrap">
-                      {p.aging.not_due > 0 ? `₹${p.aging.not_due.toLocaleString('en-IN')}` : '-'}
+                      {(p.aging?.not_due || 0) > 0 ? `₹${(p.aging.not_due).toLocaleString('en-IN')}` : '-'}
                     </td>
 
                     <td className="py-3 px-4 text-right text-amber-700 font-medium whitespace-nowrap">
-                      {p.aging.overdue_1_30 > 0 ? `₹${p.aging.overdue_1_30.toLocaleString('en-IN')}` : '-'}
+                      {(p.aging?.overdue_1_30 || 0) > 0 ? `₹${(p.aging.overdue_1_30).toLocaleString('en-IN')}` : '-'}
                     </td>
 
                     <td className="py-3 px-4 text-right text-rose-600 font-semibold whitespace-nowrap">
-                      {p.aging.overdue_31_60 > 0 ? `₹${p.aging.overdue_31_60.toLocaleString('en-IN')}` : '-'}
+                      {(p.aging?.overdue_31_60 || 0) > 0 ? `₹${(p.aging.overdue_31_60).toLocaleString('en-IN')}` : '-'}
                     </td>
 
                     <td className="py-3 px-4 text-right text-rose-700 font-extrabold whitespace-nowrap">
-                      {(p.aging.overdue_61_90 + p.aging.overdue_90_plus) > 0 ? (
-                        `₹${(p.aging.overdue_61_90 + p.aging.overdue_90_plus).toLocaleString('en-IN')}`
+                      {((p.aging?.overdue_61_90 || 0) + (p.aging?.overdue_90_plus || 0)) > 0 ? (
+                        `₹${((p.aging?.overdue_61_90 || 0) + (p.aging?.overdue_90_plus || 0)).toLocaleString('en-IN')}`
                       ) : '-'}
                     </td>
 

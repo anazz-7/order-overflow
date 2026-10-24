@@ -385,7 +385,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">Today</span>
             <div className="text-lg font-bold text-slate-900 mt-1">
-              ₹{stats.today_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.today_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -393,7 +393,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">This Month</span>
             <div className="text-lg font-bold text-slate-900 mt-1">
-              ₹{stats.month_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.month_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -401,7 +401,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">This Year</span>
             <div className="text-lg font-bold text-slate-900 mt-1 truncate">
-              ₹{stats.year_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.year_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -409,7 +409,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs bg-slate-50/50">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">Cash</span>
             <div className="text-base font-bold text-slate-800 mt-1">
-              ₹{stats.cash_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.cash_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -417,7 +417,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-indigo-100 shadow-2xs bg-indigo-50/20">
             <span className="text-[10px] font-semibold uppercase text-indigo-700 tracking-wider">UPI / GPay</span>
             <div className="text-base font-bold text-indigo-900 mt-1">
-              ₹{stats.upi_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.upi_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -425,7 +425,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">Bank Transfer</span>
             <div className="text-base font-bold text-slate-800 mt-1">
-              ₹{stats.bank_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.bank_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -433,7 +433,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-semibold uppercase text-slate-500 tracking-wider">Cheque</span>
             <div className="text-base font-bold text-slate-800 mt-1">
-              ₹{stats.cheque_total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.cheque_total || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
 
@@ -441,7 +441,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <div className="bg-white p-3.5 rounded-xl border border-amber-200/80 shadow-2xs bg-amber-50/20">
             <span className="text-[10px] font-semibold uppercase text-amber-800 tracking-wider">Unallocated</span>
             <div className="text-base font-bold text-amber-800 mt-1">
-              ₹{stats.total_unallocated.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.total_unallocated || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </div>
         </div>
@@ -572,18 +572,18 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       {pay.reference_no || '-'}
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                      ₹{pay.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{(pay.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      {pay.allocated_amount > 0 ? (
+                      {(pay.allocated_amount || 0) > 0 ? (
                         <span className="text-emerald-700 font-medium">
-                          Allocated ₹{pay.allocated_amount.toLocaleString('en-IN')}
+                          Allocated ₹{(pay.allocated_amount || 0).toLocaleString('en-IN')}
                         </span>
                       ) : (
                         <span className="text-amber-700 font-medium">Unallocated Credit</span>
                       )}
-                      {pay.unallocated_amount > 0 && pay.allocated_amount > 0 && (
-                        <p className="text-[10px] text-slate-400">Rem: ₹{pay.unallocated_amount.toLocaleString('en-IN')}</p>
+                      {(pay.unallocated_amount || 0) > 0 && (pay.allocated_amount || 0) > 0 && (
+                        <p className="text-[10px] text-slate-400">Rem: ₹{(pay.unallocated_amount || 0).toLocaleString('en-IN')}</p>
                       )}
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">

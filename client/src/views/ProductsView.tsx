@@ -368,7 +368,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       {prod.unit}
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                      ₹{prod.selling_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{(prod.selling_price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4 text-center font-medium text-slate-600">
                       {prod.min_order_qty}

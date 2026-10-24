@@ -588,25 +588,50 @@ export const supabaseApi = {
   // Payments
   getPaymentsStats: async () => {
     const sb = getClient();
-    const { data } = await sb.from('payments').select('amount, payment_date, status').eq('status', 'posted');
+    const { data } = await sb.from('payments').select('amount, payment_date, payment_method, unallocated_amount, status').eq('status', 'posted');
     const today = getTodayStr();
     const currentMonth = today.substring(0, 7);
+    const currentYear = today.substring(0, 4);
 
-    let total = 0;
     let todayTotal = 0;
     let monthTotal = 0;
+    let yearTotal = 0;
+    let cashTotal = 0;
+    let upiTotal = 0;
+    let bankTotal = 0;
+    let chequeTotal = 0;
+    let otherTotal = 0;
+    let unallocatedTotal = 0;
 
     (data || []).forEach(p => {
       const amt = Number(p.amount) || 0;
-      total += amt;
       if (p.payment_date === today) todayTotal += amt;
       if (p.payment_date?.startsWith(currentMonth)) monthTotal += amt;
+      if (p.payment_date?.startsWith(currentYear)) yearTotal += amt;
+
+      if (p.payment_method === 'Cash') cashTotal += amt;
+      else if (p.payment_method === 'UPI') upiTotal += amt;
+      else if (p.payment_method === 'Bank Transfer') bankTotal += amt;
+      else if (p.payment_method === 'Cheque') chequeTotal += amt;
+      else otherTotal += amt;
+
+      unallocatedTotal += Number(p.unallocated_amount) || 0;
     });
 
     return {
       success: true,
       data: {
-        total_payments_collected: total,
+        today_total: todayTotal,
+        month_total: monthTotal,
+        year_total: yearTotal,
+        cash_total: cashTotal,
+        upi_total: upiTotal,
+        bank_total: bankTotal,
+        cheque_total: chequeTotal,
+        other_total: otherTotal,
+        total_unallocated: unallocatedTotal,
+        total_payments_count: (data || []).length,
+        total_payments_collected: yearTotal,
         payments_today: todayTotal,
         payments_this_month: monthTotal
       }
@@ -791,28 +816,65 @@ export const supabaseApi = {
       balances[e.party_id] = (balances[e.party_id] || 0) + (Number(e.debit) || 0) - (Number(e.credit) || 0);
     });
 
-    let totalOutstanding = 0;
-    let partiesOverLimit = 0;
-    let list: any[] = [];
+    const today = new Date();
+    let totalReceivables = 0;
+    let totalOverdue = 0;
+    let partiesWithBalanceCount = 0;
+    let partiesOverLimitCount = 0;
 
-    (parties || []).forEach(p => {
+    let list = (parties || []).map(p => {
       const bal = balances[p.id] ?? Number(p.opening_balance || 0);
-      if (bal > 0) totalOutstanding += bal;
       const limit = Number(p.credit_limit || 0);
       const isOver = limit > 0 && bal > limit;
-      if (isOver) partiesOverLimit++;
+
+      if (bal > 0) partiesWithBalanceCount++;
+      if (isOver) partiesOverLimitCount++;
+      totalReceivables += bal;
 
       const partyOrders = (orders || []).filter(o => o.party_id === p.id);
-      const partyReminders = (reminders || []).filter(r => r.party_id === p.id);
+      let notDue = 0;
+      let overdue1_30 = 0;
+      let overdue31_60 = 0;
+      let overdue61_90 = 0;
+      let overdue90Plus = 0;
 
-      list.push({
+      partyOrders.forEach(o => {
+        const unpaid = Math.max(0, Number(o.final_amount) - (Number(o.allocated_amount) || 0));
+        if (unpaid > 0) {
+          const dueDate = new Date(o.due_date || o.order_date);
+          const diffDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 3600 * 24));
+          if (diffDays <= 0) notDue += unpaid;
+          else if (diffDays <= 30) overdue1_30 += unpaid;
+          else if (diffDays <= 60) overdue31_60 += unpaid;
+          else if (diffDays <= 90) overdue61_90 += unpaid;
+          else overdue90Plus += unpaid;
+        }
+      });
+
+      const partyTotalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue90Plus;
+      totalOverdue += partyTotalOverdue;
+
+      const partyReminders = (reminders || []).filter(r => r.party_id === p.id);
+      const latestReminder = partyReminders[0] || null;
+
+      return {
         ...p,
         outstanding_balance: bal,
+        is_over_limit: isOver,
         is_over_credit_limit: isOver,
         credit_available: limit > 0 ? Math.max(0, limit - bal) : 0,
         unpaid_orders_count: partyOrders.length,
-        pending_reminders: partyReminders
-      });
+        latest_reminder: latestReminder,
+        pending_reminders: partyReminders,
+        aging: {
+          not_due: notDue,
+          overdue_1_30: overdue1_30,
+          overdue_31_60: overdue31_60,
+          overdue_61_90: overdue61_90,
+          overdue_90_plus: overdue90Plus,
+          total_overdue: partyTotalOverdue
+        }
+      };
     });
 
     if (params?.search) {
@@ -822,18 +884,24 @@ export const supabaseApi = {
     if (params?.area && params.area !== 'all') {
       list = list.filter(p => p.area === params.area);
     }
-    if (params?.filter_status === 'over_limit') {
-      list = list.filter(p => p.is_over_credit_limit);
-    } else if (params?.filter_status === 'positive_balance') {
+    if (params?.filter_status === 'overdue_only') {
+      list = list.filter(p => p.aging.total_overdue > 0);
+    } else if (params?.filter_status === 'exceeded_limit' || params?.filter_status === 'over_limit') {
+      list = list.filter(p => p.is_over_limit);
+    } else if (params?.filter_status === 'with_balance' || params?.filter_status === 'positive_balance') {
       list = list.filter(p => p.outstanding_balance > 0);
     }
 
     return {
       success: true,
       summary: {
-        total_outstanding: totalOutstanding,
-        parties_with_outstanding: list.filter(p => p.outstanding_balance > 0).length,
-        parties_over_limit: partiesOverLimit,
+        total_receivables: totalReceivables,
+        current_outstanding: Math.max(0, totalReceivables - totalOverdue),
+        overdue_outstanding: totalOverdue,
+        parties_with_balance: partiesWithBalanceCount,
+        parties_over_limit: partiesOverLimitCount,
+        total_outstanding: totalReceivables,
+        parties_with_outstanding: partiesWithBalanceCount,
         total_unallocated_credit: 0
       },
       data: list

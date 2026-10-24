@@ -421,7 +421,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                       {ord.item_count || 0} line(s)
                     </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                      ₹{ord.final_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{(ord.final_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
@@ -438,12 +438,12 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                         ord.payment_status === 'partially_paid' ? 'bg-amber-100 text-amber-800' :
                         'bg-slate-100 text-slate-700'
                       }`}>
-                        {ord.payment_status.replace('_', ' ')}
+                        {(ord.payment_status || '').replace('_', ' ')}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <span className="font-medium text-slate-700">
-                        ₹{ord.allocated_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        ₹{(ord.allocated_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">

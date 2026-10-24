@@ -533,20 +533,20 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
             <div className="bg-slate-50 border-b border-slate-200 p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs shrink-0">
               <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 uppercase font-medium">Outstanding Balance</span>
-                <p className={`text-base font-extrabold ${activeParty.outstanding_balance > 0 ? 'text-amber-800' : 'text-emerald-700'}`}>
-                  ₹{activeParty.outstanding_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                <p className={`text-base font-extrabold ${(activeParty.outstanding_balance || 0) > 0 ? 'text-amber-800' : 'text-emerald-700'}`}>
+                  ₹{(activeParty.outstanding_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 uppercase font-medium">Overdue Amount</span>
                 <p className="text-base font-extrabold text-rose-700">
-                  ₹{activeParty.overdue_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{(activeParty.overdue_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
                 <span className="text-[10px] text-slate-400 uppercase font-medium">Credit Limit</span>
                 <p className="text-base font-bold text-slate-800">
-                  ₹{activeParty.credit_limit.toLocaleString('en-IN')}
+                  ₹{(activeParty.credit_limit || 0).toLocaleString('en-IN')}
                 </p>
               </div>
               <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
