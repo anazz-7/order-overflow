@@ -9,7 +9,13 @@ import {
   Copy,
   FileText,
   CheckCircle2,
-  Truck
+  Truck,
+  Users,
+  UserPlus,
+  PackagePlus,
+  X,
+  Package,
+  Tag
 } from 'lucide-react';
 import { api } from '../api';
 import type { SalesOrder, Party, Product, UserRole } from '../types';
@@ -63,6 +69,25 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   >([]);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [repeatDiffWarning, setRepeatDiffWarning] = useState<boolean>(false);
+
+  // Quick Add Party Form State
+  const [isQuickPartyOpen, setIsQuickPartyOpen] = useState(false);
+  const [quickPartyName, setQuickPartyName] = useState('');
+  const [quickPartyPhone, setQuickPartyPhone] = useState('');
+  const [quickPartyArea, setQuickPartyArea] = useState('Market');
+  const [quickPartyContact, setQuickPartyContact] = useState('');
+  const [quickPartyCreditLimit, setQuickPartyCreditLimit] = useState('50000');
+  const [quickPartyTerms, setQuickPartyTerms] = useState('15');
+  const [isSubmittingQuickParty, setIsSubmittingQuickParty] = useState(false);
+
+  // Quick Add Product Form State
+  const [isQuickProductOpen, setIsQuickProductOpen] = useState(false);
+  const [quickProdName, setQuickProdName] = useState('');
+  const [quickProdCategory, setQuickProdCategory] = useState('Grains & Rice');
+  const [quickProdUnit, setQuickProdUnit] = useState('Bags');
+  const [quickProdPrice, setQuickProdPrice] = useState('');
+  const [quickProdPackSize, setQuickProdPackSize] = useState('25 kg');
+  const [isSubmittingQuickProduct, setIsSubmittingQuickProduct] = useState(false);
 
   // Fetch orders
   const fetchOrders = async () => {
@@ -235,6 +260,115 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     setFormNotes('');
     setFormLines([]);
     setRepeatDiffWarning(false);
+  };
+
+  // Quick Add Party from Order Form
+  const handleQuickAddParty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickPartyName.trim() || !quickPartyPhone.trim()) {
+      onShowToast('error', 'Missing Information', 'Customer name and phone number are required.');
+      return;
+    }
+
+    setIsSubmittingQuickParty(true);
+    try {
+      const res = await api.createParty(
+        {
+          name: quickPartyName.trim(),
+          phone: quickPartyPhone.trim(),
+          whatsapp: quickPartyPhone.trim(),
+          area: quickPartyArea.trim() || 'Market',
+          contact_person: quickPartyContact.trim() || quickPartyName.trim(),
+          credit_limit: Number(quickPartyCreditLimit || 0),
+          payment_terms_days: Number(quickPartyTerms || 15),
+          opening_balance: 0,
+          status: 'active'
+        },
+        userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member'
+      );
+
+      const createdId = res.data?.id;
+      onShowToast('success', 'Party Registered', `${quickPartyName} was registered and selected!`);
+
+      // Refresh parties list
+      const partiesRes = await api.getParties({ status: 'active' });
+      if (partiesRes.data) {
+        setParties(partiesRes.data);
+      }
+      if (createdId) {
+        setFormPartyId(createdId);
+      }
+
+      // Reset and close
+      setQuickPartyName('');
+      setQuickPartyPhone('');
+      setQuickPartyContact('');
+      setQuickPartyArea('Market');
+      setIsQuickPartyOpen(false);
+    } catch (err: any) {
+      onShowToast('error', 'Registration Failed', err.message);
+    } finally {
+      setIsSubmittingQuickParty(false);
+    }
+  };
+
+  // Quick Add Product to Catalog & Current Order
+  const handleQuickAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickProdName.trim() || !quickProdPrice) {
+      onShowToast('error', 'Missing Information', 'Product name and selling price are required.');
+      return;
+    }
+
+    setIsSubmittingQuickProduct(true);
+    try {
+      const skuGenerated = 'SKU-' + quickProdName.trim().slice(0, 3).toUpperCase() + '-' + Math.floor(100 + Math.random() * 900);
+      const res = await api.createProduct(
+        {
+          name: quickProdName.trim(),
+          sku: skuGenerated,
+          category: quickProdCategory,
+          unit: quickProdUnit,
+          pack_size: quickProdPackSize,
+          selling_price: Number(quickProdPrice),
+          stock_quantity: 100,
+          status: 'active'
+        },
+        userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member'
+      );
+
+      const createdId = res.data?.id;
+      onShowToast('success', 'Product Added', `${quickProdName} added to catalog & order!`);
+
+      // Refresh product catalog
+      const prodRes = await api.getProducts({ status: 'active' });
+      if (prodRes.data) {
+        setProducts(prodRes.data);
+      }
+
+      // Add 1 unit of this new product directly to current order lines
+      if (createdId) {
+        const newLine = {
+          product_id: createdId,
+          product_name: quickProdName.trim(),
+          product_sku: skuGenerated,
+          unit_price: Number(quickProdPrice),
+          quantity: 1,
+          line_total: Number(quickProdPrice),
+          unit: quickProdUnit
+        };
+        setFormLines(prev => [...prev, newLine]);
+      }
+
+      // Reset and close
+      setQuickProdName('');
+      setQuickProdPrice('');
+      setIsQuickProductOpen(false);
+    } catch (err: any) {
+      onShowToast('error', 'Product Creation Failed', err.message);
+    } finally {
+      setIsSubmittingQuickProduct(false);
+    }
   };
 
   // Repeat Previous Order
@@ -564,7 +698,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 </div>
 
                 <div className="bg-white rounded-xl p-3 border border-slate-200/90 shadow-[0_1px_3px_0_rgba(15,23,42,0.04)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex-1">
+                  <div className="flex-1 flex gap-2 items-center">
                     <select
                       value={formPartyId}
                       onChange={e => setFormPartyId(e.target.value)}
@@ -578,7 +712,34 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                         </option>
                       ))}
                     </select>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickPartyOpen(true)}
+                      title="Quick Add Customer without losing entered order items"
+                      className="px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer transition-all"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Quick Add</span>
+                      <span className="sm:hidden">Add</span>
+                    </button>
                   </div>
+
+                  {parties.length === 0 && (
+                    <div className="w-full p-2.5 bg-indigo-50/80 border border-indigo-200 rounded-lg flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-indigo-900 text-xs">
+                        <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span className="font-medium">No parties in directory. Register customer now:</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickPartyOpen(true)}
+                        className="px-2 py-1 bg-indigo-600 text-white rounded text-[11px] font-bold hover:bg-indigo-700 cursor-pointer"
+                      >
+                        + Add First Customer
+                      </button>
+                    </div>
+                  )}
 
                   {selectedFormParty && (
                     <div className="flex items-center justify-between sm:justify-end gap-3 pl-0 sm:pl-3 sm:border-l border-slate-200/80 shrink-0">
@@ -642,8 +803,32 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                         {cat}
                       </button>
                     ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickProductOpen(true)}
+                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 border border-slate-300 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <PackagePlus className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>+ New Product</span>
+                    </button>
                   </div>
                 </div>
+
+                {products.length === 0 && (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
+                    <Package className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-bold text-slate-700">No products in wholesale catalog</p>
+                    <p className="text-[11px] text-slate-500">Quickly add commodities to start billing orders.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickProductOpen(true)}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <PackagePlus className="w-3.5 h-3.5" /> Quick Add Product
+                    </button>
+                  </div>
+                )}
 
                 {/* Fast-Pick Product Cards Grid with Steppers */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-slate-200/80 rounded-xl bg-slate-50/50">
@@ -812,6 +997,38 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                       className="w-full text-xs p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-bold"
                     />
                   </div>
+                </div>
+
+                {/* 1-Tap Discount Presets */}
+                <div className="md:col-span-2 flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-indigo-500" /> Presets:
+                  </span>
+                  {[
+                    { label: '0%', type: 'flat', val: '0' },
+                    { label: '1%', type: 'percent', val: '1' },
+                    { label: '2%', type: 'percent', val: '2' },
+                    { label: '3%', type: 'percent', val: '3' },
+                    { label: '5%', type: 'percent', val: '5' },
+                    { label: '₹100', type: 'flat', val: '100' },
+                    { label: '₹500', type: 'flat', val: '500' }
+                  ].map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setFormDiscountType(p.type as any);
+                        setFormDiscountValue(p.val);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer ${
+                        formDiscountValue === p.val && formDiscountType === p.type
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1030,6 +1247,246 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Party Modal (z-60 on top of order modal) */}
+      {isQuickPartyOpen && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Quick Register Retail Customer</h3>
+                  <p className="text-[11px] text-slate-400">Adds party and auto-selects for this current order</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickPartyOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAddParty} className="p-6 space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800">Store / Retailer Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sri Krishna Maligai / Murugan Stores"
+                  value={quickPartyName}
+                  onChange={e => setQuickPartyName(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. 98421 55678"
+                    value={quickPartyPhone}
+                    onChange={e => setQuickPartyPhone(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Area / Market Location *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Big Bazaar, Town, RS Puram"
+                    value={quickPartyArea}
+                    onChange={e => setQuickPartyArea(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Contact Person</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Murugan"
+                    value={quickPartyContact}
+                    onChange={e => setQuickPartyContact(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Credit Limit (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="50000"
+                    value={quickPartyCreditLimit}
+                    onChange={e => setQuickPartyCreditLimit(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Payment Terms</label>
+                  <select
+                    value={quickPartyTerms}
+                    onChange={e => setQuickPartyTerms(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  >
+                    <option value="7">7 Days</option>
+                    <option value="15">15 Days</option>
+                    <option value="30">30 Days</option>
+                    <option value="0">Cash On Delivery</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickPartyOpen(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickParty}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg font-bold shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {isSubmittingQuickParty ? 'Saving...' : 'Register & Select Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Product Modal (z-60 on top of order modal) */}
+      {isQuickProductOpen && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                  <PackagePlus className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Quick Add Product SKU</h3>
+                  <p className="text-[11px] text-slate-400">Adds product to catalog & immediately inserts 1 unit into this order</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickProductOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAddProduct} className="p-6 space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-800">Product / Commodity Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ponni Boiled Rice 25kg / Sunflower Oil 1L"
+                  value={quickProdName}
+                  onChange={e => setQuickProdName(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white focus:border-indigo-500 font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Wholesale Category *</label>
+                  <select
+                    value={quickProdCategory}
+                    onChange={e => setQuickProdCategory(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  >
+                    <option value="Grains & Rice">Grains & Rice</option>
+                    <option value="Edible Oils">Edible Oils</option>
+                    <option value="Spices & Masala">Spices & Masala</option>
+                    <option value="Flour & Atta">Flour & Atta</option>
+                    <option value="Pulses & Dals">Pulses & Dals</option>
+                    <option value="Sugar & Jaggery">Sugar & Jaggery</option>
+                    <option value="Packaged Foods">Packaged Foods</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Selling Price Per Unit (₹) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    placeholder="e.g. 1450"
+                    value={quickProdPrice}
+                    onChange={e => setQuickProdPrice(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white font-bold text-indigo-700 font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Unit of Measurement</label>
+                  <select
+                    value={quickProdUnit}
+                    onChange={e => setQuickProdUnit(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  >
+                    <option value="Bags">Bags</option>
+                    <option value="Cartons">Cartons</option>
+                    <option value="Boxes">Boxes</option>
+                    <option value="Kg">Kg</option>
+                    <option value="Litres">Litres</option>
+                    <option value="Tins">Tins</option>
+                    <option value="Packets">Packets</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-700">Pack Size / Specification</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 25 kg / 10 x 1L"
+                    value={quickProdPackSize}
+                    onChange={e => setQuickProdPackSize(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickProductOpen(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickProduct}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg font-bold shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  <PackagePlus className="w-4 h-4" />
+                  {isSubmittingQuickProduct ? 'Saving...' : 'Add to Catalog & Order'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

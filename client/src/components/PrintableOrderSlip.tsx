@@ -1,5 +1,5 @@
 import React from 'react';
-import { Printer, X, CheckCircle2, FileText } from 'lucide-react';
+import { Printer, X, CheckCircle2, FileText, MessageSquare } from 'lucide-react';
 import { SalesOrder } from '../types';
 
 interface PrintableOrderSlipProps {
@@ -17,6 +17,34 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
     window.print();
   };
 
+  const handleWhatsAppShare = () => {
+    const partyPhone = order.party_phone || '';
+    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
+    const phoneParam = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+
+    const itemsText = (order.items || [])
+      .map(it => `• ${it.product_name} x ${it.quantity} ${it.unit || ''} = ₹${(it.line_total || 0).toLocaleString('en-IN')}`)
+      .join('\n');
+
+    const msg = 
+      `*SALES ORDER CONFIRMATION — ${businessSettings?.business_name || 'Barakkath Agencies'}*\n` +
+      `--------------------------------\n` +
+      `*Order ID:* #${order.id}\n` +
+      `*Customer:* ${order.party_name}\n` +
+      `*Date:* ${order.order_date}\n` +
+      `*Status:* ${order.status.toUpperCase()}\n` +
+      `--------------------------------\n` +
+      `*Items:*\n${itemsText}\n` +
+      `--------------------------------\n` +
+      `*Subtotal:* ₹${(order.subtotal || 0).toLocaleString('en-IN')}\n` +
+      (order.discount_amount > 0 ? `*Discount:* -₹${(order.discount_amount || 0).toLocaleString('en-IN')}\n` : '') +
+      `*Total Amount:* ₹${(order.final_amount || 0).toLocaleString('en-IN')}\n\n` +
+      `Thank you for your valued order!\n_${businessSettings?.tagline || 'Wholesale Distribution ERP'}_`;
+
+    const url = phoneParam ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
   const businessName = businessSettings?.business_name || 'Barakkath Agencies';
   const tagline = businessSettings?.tagline || 'Wholesale Sales & Party Management';
   const address = businessSettings?.address || '42, Big Bazaar Street, Wholesale Market, Coimbatore - 641001';
@@ -31,13 +59,21 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
             <FileText className="w-5 h-5 text-indigo-400" />
             <span className="font-semibold text-sm">Sales Order Slip #{order.id}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={handleWhatsAppShare}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Send Order Slip to Retailer via WhatsApp"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </button>
             <button
               onClick={handlePrint}
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print Order Slip
+              Print
             </button>
             <button
               onClick={onClose}
