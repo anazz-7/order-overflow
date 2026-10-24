@@ -919,6 +919,66 @@ export const supabaseApi = {
       if (limit > 0 && bal > limit) partiesOverLimit++;
     });
 
+    // Top 5 Parties by Order Spend
+    const { data: allConfirmedOrders } = await sb.from('sales_orders').select(`
+      party_id, final_amount,
+      party:parties(name, area)
+    `).eq('status', 'confirmed');
+
+    const partySpend: Record<string, { id: string; name: string; area: string; order_count: number; total_spent: number }> = {};
+    (allConfirmedOrders || []).forEach((o: any) => {
+      const pid = o.party_id;
+      if (!partySpend[pid]) {
+        partySpend[pid] = { id: pid, name: o.party?.name || 'Party', area: o.party?.area || '', order_count: 0, total_spent: 0 };
+      }
+      partySpend[pid].order_count++;
+      partySpend[pid].total_spent += Number(o.final_amount) || 0;
+    });
+    const topParties = Object.values(partySpend).sort((a, b) => b.total_spent - a.total_spent).slice(0, 5);
+
+    // Frequently Ordered Products
+    const { data: orderItems } = await sb.from('order_items').select(`
+      product_id, product_name, product_sku, unit, quantity, line_total,
+      order:sales_orders(status)
+    `);
+
+    const productSales: Record<string, { product_id: string; product_name: string; product_sku: string; unit: string; total_quantity_ordered: number; total_revenue: number }> = {};
+    (orderItems || []).forEach((it: any) => {
+      if (it.order?.status === 'confirmed') {
+        const pid = it.product_id;
+        if (!productSales[pid]) {
+          productSales[pid] = { product_id: pid, product_name: it.product_name, product_sku: it.product_sku, unit: it.unit, total_quantity_ordered: 0, total_revenue: 0 };
+        }
+        productSales[pid].total_quantity_ordered += Number(it.quantity) || 0;
+        productSales[pid].total_revenue += Number(it.line_total) || 0;
+      }
+    });
+    const topProducts = Object.values(productSales).sort((a, b) => b.total_quantity_ordered - a.total_quantity_ordered).slice(0, 5);
+
+    // Overdue Parties
+    const { data: unpaidOrders } = await sb.from('sales_orders').select(`
+      party_id, final_amount, allocated_amount, due_date,
+      party:parties(name, phone, area)
+    `).eq('status', 'confirmed').neq('payment_status', 'paid');
+
+    const overdueMap: Record<string, { id: string; name: string; phone: string; area: string; overdue_amount: number; oldest_due_date: string }> = {};
+    (unpaidOrders || []).forEach((o: any) => {
+      if (o.due_date && o.due_date < today) {
+        const pid = o.party_id;
+        const remaining = Number(o.final_amount) - (Number(o.allocated_amount) || 0);
+        if (remaining > 0) {
+          if (!overdueMap[pid]) {
+            overdueMap[pid] = { id: pid, name: o.party?.name || 'Party', phone: o.party?.phone || '', area: o.party?.area || '', overdue_amount: 0, oldest_due_date: o.due_date };
+          }
+          overdueMap[pid].overdue_amount += remaining;
+          if (o.due_date < overdueMap[pid].oldest_due_date) {
+            overdueMap[pid].oldest_due_date = o.due_date;
+          }
+        }
+      }
+    });
+    const overdueParties = Object.values(overdueMap).sort((a, b) => b.overdue_amount - a.overdue_amount).slice(0, 5);
+
     // Recent 6 orders
     const { data: recentOrders } = await sb.from('sales_orders').select(`
       id, order_date, final_amount, status, payment_status,
@@ -934,17 +994,17 @@ export const supabaseApi = {
     return {
       success: true,
       data: {
-        metrics: {
+        kpi: {
           orders_today: ordersToday,
           orders_this_month: ordersThisMonth,
           total_order_value: totalOrderVal,
           order_value_this_month: orderValMonth,
-          total_payments_collected: totalPayments,
           payments_today: paymentsToday,
           payments_this_month: paymentsThisMonth,
-          total_outstanding_balance: totalOutstanding,
+          total_payments_collected: totalPayments,
+          total_outstanding: totalOutstanding,
           parties_with_outstanding: partiesWithOutstanding,
-          parties_over_credit_limit: partiesOverLimit
+          parties_over_limit: partiesOverLimit
         },
         recent_orders: (recentOrders || []).map((o: any) => ({
           ...o,
@@ -956,7 +1016,9 @@ export const supabaseApi = {
           party_name: p.party?.name,
           party_area: p.party?.area
         })),
-        top_overdue_parties: []
+        top_parties: topParties,
+        top_products: topProducts,
+        overdue_parties: overdueParties
       }
     };
   },

@@ -89,7 +89,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
   }
 
-  const { kpi, recent_orders, recent_payments, top_parties, top_products, overdue_parties } = data;
+  const {
+    kpi = {
+      orders_today: 0,
+      orders_this_month: 0,
+      total_order_value: 0,
+      order_value_this_month: 0,
+      payments_today: 0,
+      payments_this_month: 0,
+      total_payments_collected: 0,
+      total_outstanding: 0,
+      parties_with_outstanding: 0,
+      parties_over_limit: 0
+    },
+    recent_orders = [],
+    recent_payments = [],
+    top_parties = [],
+    top_products = [],
+    overdue_parties = []
+  } = data || {};
 
   return (
     <div className="space-y-6">
