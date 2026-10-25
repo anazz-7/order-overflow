@@ -181,6 +181,49 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
+  -- Returns and Exchanges table
+  CREATE TABLE IF NOT EXISTS returns (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK(type IN ('return', 'refund', 'exchange')),
+    party_id TEXT NOT NULL REFERENCES parties(id),
+    order_id TEXT NOT NULL REFERENCES sales_orders(id),
+    return_date TEXT NOT NULL,
+    total_return_amount REAL NOT NULL,
+    reason TEXT,
+    refund_method TEXT,
+    refund_reference TEXT,
+    refund_amount REAL DEFAULT 0.0,
+    exchange_product_id TEXT REFERENCES products(id),
+    exchange_product_name TEXT,
+    exchange_product_sku TEXT,
+    exchange_product_unit TEXT,
+    exchange_unit_price REAL DEFAULT 0.0,
+    exchange_quantity INTEGER DEFAULT 0,
+    total_exchange_amount REAL DEFAULT 0.0,
+    difference_amount REAL DEFAULT 0.0,
+    difference_action TEXT,
+    difference_payment_method TEXT,
+    status TEXT DEFAULT 'completed' CHECK(status IN ('completed', 'cancelled')),
+    created_by TEXT DEFAULT 'Admin',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+  );
+
+  -- Return Items table
+  CREATE TABLE IF NOT EXISTS return_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id TEXT NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
+    product_id TEXT NOT NULL REFERENCES products(id),
+    product_sku TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    unit_price REAL NOT NULL,
+    purchased_quantity INTEGER NOT NULL,
+    return_quantity INTEGER NOT NULL,
+    return_amount REAL NOT NULL
+  );
+
   -- Create helpful indexes for performance
   CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
   CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
@@ -196,6 +239,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
   CREATE INDEX IF NOT EXISTS idx_sms_logs_reference ON sms_logs(reference_id);
   CREATE INDEX IF NOT EXISTS idx_sms_logs_created ON sms_logs(created_at);
+  CREATE INDEX IF NOT EXISTS idx_returns_party ON returns(party_id);
+  CREATE INDEX IF NOT EXISTS idx_returns_order ON returns(order_id);
+  CREATE INDEX IF NOT EXISTS idx_returns_date ON returns(return_date);
+  CREATE INDEX IF NOT EXISTS idx_returns_type ON returns(type);
+  CREATE INDEX IF NOT EXISTS idx_return_items_return ON return_items(return_id);
+  CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id);
 `);
 
 // Helper to record audit log

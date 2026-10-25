@@ -209,3 +209,65 @@ export interface ToastMessage {
   title: string;
   message?: string;
 }
+
+export type ReturnType = 'return' | 'refund' | 'exchange';
+export type RefundPaymentMethod = 'Cash' | 'UPI' | 'Bank Transfer';
+
+export interface ReturnItem {
+  id?: number;
+  return_id?: string;
+  product_id: string;
+  product_sku: string;
+  product_name: string;
+  unit: string;
+  unit_price: number;
+  purchased_quantity: number;
+  return_quantity: number;
+  return_amount: number;
+  already_returned_quantity?: number;
+  remaining_returnable_quantity?: number;
+  is_fully_returned?: boolean;
+}
+
+export interface ReturnExchange {
+  id: string;
+  type: ReturnType;
+  party_id: string;
+  party_name?: string;
+  party_phone?: string;
+  party_area?: string;
+  party_address?: string;
+  order_id: string;
+  order_date?: string;
+  order_final_amount?: number;
+  return_date: string;
+  total_return_amount: number;
+  reason?: string | null;
+  refund_method?: RefundPaymentMethod | string | null;
+  refund_reference?: string | null;
+  refund_amount?: number;
+  exchange_product_id?: string | null;
+  exchange_product_name?: string | null;
+  exchange_product_sku?: string | null;
+  exchange_product_unit?: string | null;
+  exchange_unit_price?: number;
+  exchange_quantity?: number;
+  total_exchange_amount?: number;
+  difference_amount?: number;
+  difference_action?: 'customer_pays' | 'store_refunds' | 'even' | null;
+  difference_payment_method?: RefundPaymentMethod | string | null;
+  status: 'completed' | 'cancelled';
+  created_by: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at?: string;
+  returned_items?: ReturnItem[];
+}
+
+export interface ReturnStats {
+  total_returns_count: number;
+  total_refunds_amount: number;
+  total_exchanges_count: number;
+  today_count: number;
+}
+

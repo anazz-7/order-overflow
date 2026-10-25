@@ -236,7 +236,28 @@ const httpApi = {
     request<{ success: boolean; result: any }>('/sms/test', {
       method: 'POST',
       body: JSON.stringify({ recipient, user_name: userName })
+    }),
+
+  // Returns & Exchanges
+  getReturnsStats: () => request<{ success: boolean; data: any }>('/returns/stats'),
+  getReturns: (params?: { search?: string; party_id?: string; type?: string; order_id?: string; date_from?: string; date_to?: string }) => {
+    const q = new URLSearchParams(params as any).toString();
+    return request<{ success: boolean; data: any[] }>(`/returns?${q}`);
+  },
+  getReturn: (id: string) => request<{ success: boolean; data: any }>(`/returns/${id}`),
+  getOrderReturnable: (orderId: string) =>
+    request<{ success: boolean; data: { order: any; items: any[] } }>(`/returns/order-returnable/${orderId}`),
+  createReturn: (returnData: any, userName: string) =>
+    request<{ success: boolean; message: string; data: any }>('/returns', {
+      method: 'POST',
+      body: JSON.stringify({ ...returnData, user_name: userName })
+    }),
+  cancelReturn: (id: string, reason: string, userName: string) =>
+    request<{ success: boolean; message: string }>(`/returns/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason, user_name: userName })
     })
 };
 
 export const api = (isSupabaseConfigured ? supabaseApi : httpApi) as typeof httpApi;
+

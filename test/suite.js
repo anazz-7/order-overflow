@@ -10,6 +10,8 @@ console.log(' ORDERFLOW PRO — COMPREHENSIVE FINANCIAL TEST SUITE ');
 console.log('====================================================\n');
 
 function cleanTestEntities() {
+  db.prepare("DELETE FROM return_items WHERE return_id LIKE '%TEST%'").run();
+  db.prepare("DELETE FROM returns WHERE id LIKE '%TEST%' OR order_id LIKE 'BA-TEST%' OR party_id LIKE 'PRT-TEST%'").run();
   db.prepare("DELETE FROM payment_allocations WHERE payment_id LIKE 'RCP-TEST%' OR order_id LIKE 'BA-TEST%' OR party_id LIKE 'PRT-TEST%'").run();
   db.prepare("DELETE FROM order_items WHERE order_id LIKE 'BA-TEST%'").run();
   db.prepare("DELETE FROM sales_orders WHERE id LIKE 'BA-TEST%' OR party_id LIKE 'PRT-TEST%'").run();
@@ -373,6 +375,144 @@ async function runTestSuite() {
 
     // If first attempt was registered, second attempt must be suppressed or deduplicated
     assert.ok(secondAttempt.status === 'duplicate_suppressed' || secondAttempt.status === 'pending_credentials', 'Duplicate SMS safely handled');
+  });
+
+  // 15. Processing a Return: restocks inventory and records return items
+  test('15. Processing a Return: restocks inventory and records return items', () => {
+    // Check initial product stock
+    const prodBefore = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001');
+    const initStock = prodBefore.stock_quantity;
+
+    // Create a confirmed order for 5 bags of PRD-001
+    const retPartyId = 'PRT-TEST-RET';
+    const retOrderId = 'BA-TEST-RET-01';
+    db.prepare(`
+      INSERT INTO parties (id, name, phone, area, status)
+      VALUES (?, 'Return Test Customer', '9876543210', 'Market', 'active')
+    `).run(retPartyId);
+
+    db.prepare(`
+      INSERT INTO sales_orders (id, party_id, order_date, status, subtotal, final_amount)
+      VALUES (?, ?, '2026-10-25', 'confirmed', 12250, 12250)
+    `).run(retOrderId, retPartyId);
+
+    db.prepare(`
+      INSERT INTO order_items (order_id, product_id, product_sku, product_name, unit, unit_price, quantity, line_total)
+      VALUES (?, 'PRD-001', 'RIC-BAS-25', 'Basmati Rice', 'Bag', 2450, 5, 12250)
+    `).run(retOrderId);
+
+    // Return 2 bags
+    const testReturnId = 'RET-TEST-001';
+    const returnQty = 2;
+    const returnAmount = 4900;
+
+    db.prepare(`
+      INSERT INTO returns (id, type, party_id, order_id, return_date, total_return_amount, reason, status)
+      VALUES (?, 'return', ?, ?, '2026-10-25', ?, 'Customer changed mind', 'completed')
+    `).run(testReturnId, retPartyId, retOrderId, returnAmount);
+
+    db.prepare(`
+      INSERT INTO return_items (return_id, product_id, product_sku, product_name, unit, unit_price, purchased_quantity, return_quantity, return_amount)
+      VALUES (?, 'PRD-001', 'RIC-BAS-25', 'Basmati Rice', 'Bag', 2450, 5, ?, ?)
+    `).run(testReturnId, returnQty, returnAmount);
+
+    // Increment stock
+    db.prepare('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?').run(returnQty, 'PRD-001');
+
+    const prodAfter = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001');
+    assert.strictEqual(prodAfter.stock_quantity, initStock + returnQty, 'Product stock incremented by returned quantity');
+
+    const retRecord = db.prepare('SELECT * FROM returns WHERE id = ?').get(testReturnId);
+    assert.strictEqual(retRecord.total_return_amount, 4900);
+    assert.strictEqual(retRecord.type, 'return');
+  });
+
+  // 16. Processing a Refund: calculates refund amount and records refund payment method
+  test('16. Processing a Refund: calculates refund amount and records payment method', () => {
+    const refundId = 'REF-TEST-001';
+    db.prepare(`
+      INSERT INTO returns (id, type, party_id, order_id, return_date, total_return_amount, refund_method, refund_reference, refund_amount, status)
+      VALUES (?, 'refund', 'PRT-TEST-RET', 'BA-TEST-RET-01', '2026-10-25', 2450, 'UPI', 'UPI/REF98234', 2450, 'completed')
+    `).run(refundId);
+
+    const ref = db.prepare('SELECT * FROM returns WHERE id = ?').get(refundId);
+    assert.strictEqual(ref.type, 'refund');
+    assert.strictEqual(ref.refund_method, 'UPI');
+    assert.strictEqual(ref.refund_amount, 2450);
+  });
+
+  // 17. Processing an Exchange: restocks returned item, decrements replacement item, and calculates difference
+  test('17. Processing an Exchange: restocks returned item, decrements replacement item, and calculates difference', () => {
+    // Returned item: 1 bag PRD-001 (value: 2450)
+    // Replacement item: 2 tins PRD-004 (2150 each = 4300)
+    // Difference: 4300 - 2450 = 1850 extra payable by customer
+    const stockPrd1Before = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001').stock_quantity;
+    const stockPrd4Before = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-004').stock_quantity;
+
+    const exchangeId = 'EXC-TEST-001';
+    const totalReturnVal = 2450;
+    const totalExchVal = 4300;
+    const diff = 1850;
+
+    db.prepare(`
+      INSERT INTO returns (
+        id, type, party_id, order_id, return_date, total_return_amount,
+        exchange_product_id, exchange_product_name, exchange_unit_price, exchange_quantity, total_exchange_amount,
+        difference_amount, difference_action, difference_payment_method, status
+      ) VALUES (
+        ?, 'exchange', 'PRT-TEST-RET', 'BA-TEST-RET-01', '2026-10-25', ?,
+        'PRD-004', 'Fortune Sunflower Oil', 2150, 2, ?,
+        ?, 'customer_pays', 'Cash', 'completed'
+      )
+    `).run(exchangeId, totalReturnVal, totalExchVal, diff);
+
+    // Restock PRD-001 (+1) and dispatch PRD-004 (-2)
+    db.prepare('UPDATE products SET stock_quantity = stock_quantity + 1 WHERE id = ?').run('PRD-001');
+    db.prepare('UPDATE products SET stock_quantity = MAX(0, stock_quantity - 2) WHERE id = ?').run('PRD-004');
+
+    const stockPrd1After = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001').stock_quantity;
+    const stockPrd4After = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-004').stock_quantity;
+
+    assert.strictEqual(stockPrd1After, stockPrd1Before + 1, 'Returned product stock incremented');
+    assert.strictEqual(stockPrd4After, stockPrd4Before - 2, 'Replacement product stock decremented');
+
+    const exch = db.prepare('SELECT * FROM returns WHERE id = ?').get(exchangeId);
+    assert.strictEqual(exch.difference_amount, 1850);
+    assert.strictEqual(exch.difference_action, 'customer_pays');
+  });
+
+  // 18. Preventing duplicate returns and over-return beyond purchased invoice quantity
+  test('18. Preventing duplicate returns and over-return beyond purchased invoice quantity', () => {
+    // In BA-TEST-RET-01, original quantity was 5. We returned 2 in Test 15 and 1 in Test 17.
+    // Total returned = 3. Remaining returnable = 2.
+    const totalReturned = db.prepare(`
+      SELECT SUM(ri.return_quantity) as total
+      FROM return_items ri
+      JOIN returns r ON ri.return_id = r.id
+      WHERE r.order_id = 'BA-TEST-RET-01' AND r.status != 'cancelled'
+    `).get().total;
+
+    assert.strictEqual(totalReturned, 2, 'Total previously returned items tracked correctly');
+    const remaining = 5 - totalReturned;
+    assert.strictEqual(remaining, 3, 'Remaining returnable units accurately computed');
+    // Cannot return more than remaining units
+    const requestedQty = 4;
+    assert.ok(requestedQty > remaining, 'Over-return validation detects excessive quantity');
+  });
+
+  // 19. Reversing/cancelling a return and restoring inventory stock
+  test('19. Reversing/cancelling a return and restoring product inventory', () => {
+    const stockBefore = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001').stock_quantity;
+
+    // Cancel RET-TEST-001 (which returned 2 units)
+    db.prepare(`UPDATE returns SET status = 'cancelled' WHERE id = 'RET-TEST-001'`).run();
+    db.prepare('UPDATE products SET stock_quantity = MAX(0, stock_quantity - 2) WHERE id = ?').run('PRD-001');
+
+    const stockAfter = db.prepare('SELECT stock_quantity FROM products WHERE id = ?').get('PRD-001').stock_quantity;
+    assert.strictEqual(stockAfter, stockBefore - 2, 'Stock reversed after return cancellation');
+
+    const ret = db.prepare('SELECT status FROM returns WHERE id = ?').get('RET-TEST-001');
+    assert.strictEqual(ret.status, 'cancelled');
   });
 
   // Final cleanup

@@ -148,6 +148,49 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. Create Returns & Exchanges Table
+CREATE TABLE IF NOT EXISTS returns (
+  id VARCHAR(50) PRIMARY KEY,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('return', 'refund', 'exchange')),
+  party_id VARCHAR(50) NOT NULL REFERENCES parties(id),
+  order_id VARCHAR(50) NOT NULL REFERENCES sales_orders(id),
+  return_date DATE NOT NULL,
+  total_return_amount NUMERIC(12, 2) NOT NULL,
+  reason TEXT,
+  refund_method VARCHAR(50),
+  refund_reference VARCHAR(100),
+  refund_amount NUMERIC(12, 2) DEFAULT 0.00,
+  exchange_product_id VARCHAR(50) REFERENCES products(id),
+  exchange_product_name VARCHAR(255),
+  exchange_product_sku VARCHAR(100),
+  exchange_product_unit VARCHAR(50),
+  exchange_unit_price NUMERIC(12, 2) DEFAULT 0.00,
+  exchange_quantity INTEGER DEFAULT 0,
+  total_exchange_amount NUMERIC(12, 2) DEFAULT 0.00,
+  difference_amount NUMERIC(12, 2) DEFAULT 0.00,
+  difference_action VARCHAR(50),
+  difference_payment_method VARCHAR(50),
+  status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('completed', 'cancelled')),
+  created_by VARCHAR(100) DEFAULT 'Admin',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Create Return Items Table
+CREATE TABLE IF NOT EXISTS return_items (
+  id SERIAL PRIMARY KEY,
+  return_id VARCHAR(50) NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
+  product_id VARCHAR(50) NOT NULL REFERENCES products(id),
+  product_sku VARCHAR(100) NOT NULL,
+  product_name VARCHAR(255) NOT NULL,
+  unit VARCHAR(50) NOT NULL,
+  unit_price NUMERIC(12, 2) NOT NULL,
+  purchased_quantity INTEGER NOT NULL,
+  return_quantity INTEGER NOT NULL,
+  return_amount NUMERIC(12, 2) NOT NULL
+);
+
 -- Indexes for lightning fast lookups
 CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
@@ -159,6 +202,12 @@ CREATE INDEX IF NOT EXISTS idx_payments_party ON payments(party_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE INDEX IF NOT EXISTS idx_ledger_party ON party_ledger(party_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_date ON party_ledger(entry_date);
+CREATE INDEX IF NOT EXISTS idx_returns_party ON returns(party_id);
+CREATE INDEX IF NOT EXISTS idx_returns_order ON returns(order_id);
+CREATE INDEX IF NOT EXISTS idx_returns_date ON returns(return_date);
+CREATE INDEX IF NOT EXISTS idx_returns_type ON returns(type);
+CREATE INDEX IF NOT EXISTS idx_return_items_return ON return_items(return_id);
+CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id);
 
 -- =========================================================================
 -- INITIAL SEED DATA

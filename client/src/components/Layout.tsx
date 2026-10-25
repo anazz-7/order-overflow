@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Layers,
   Download,
-  WifiOff
+  WifiOff,
+  RotateCcw
 } from 'lucide-react';
 import type { UserRole, ToastMessage } from '../types';
 import { usePwa } from '../pwa';
@@ -29,7 +30,7 @@ interface LayoutProps {
   userRole: UserRole;
   onToggleRole: () => void;
   onOpenSearch: () => void;
-  onQuickCreate: (type: 'order' | 'payment' | 'party' | 'product') => void;
+  onQuickCreate: (type: 'order' | 'payment' | 'party' | 'product' | 'return') => void;
   toasts: ToastMessage[];
   onDismissToast: (id: string) => void;
   businessSettings?: any;
@@ -67,6 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'orders', label: 'Sales Orders', icon: ShoppingCart },
+    { id: 'returns', label: 'Returns & Exchanges', icon: RotateCcw },
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'payments', label: 'Party Payments', icon: CreditCard, highlight: true },
@@ -225,6 +227,16 @@ export const Layout: React.FC<LayoutProps> = ({
                 >
                   <Package className="w-3.5 h-3.5 text-amber-400" />
                   Add Product
+                </button>
+                <button
+                  onClick={() => {
+                    setQuickCreateOpen(false);
+                    onQuickCreate('return');
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded flex items-center gap-2"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                  Returns & Exchanges
                 </button>
               </div>
             )}

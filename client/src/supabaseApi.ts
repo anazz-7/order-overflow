@@ -1692,6 +1692,366 @@ export const supabaseApi = {
     });
     if (!res.ok) throw new Error(`Test SMS failed (${res.status})`);
     return await res.json();
+  },
+
+  // Returns & Exchanges
+  getReturnsStats: async () => {
+    try {
+      const res = await fetch('/api/returns/stats');
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    try {
+      const { data: returnsData, error } = await sb.from('returns').select('*').neq('status', 'cancelled');
+      if (!error && returnsData) {
+        const today = new Date().toISOString().split('T')[0];
+        const totalReturnsCount = returnsData.length;
+        const totalRefundsAmount = returnsData
+          .filter(r => r.type === 'refund')
+          .reduce((sum, r) => sum + (Number(r.total_return_amount) || 0), 0);
+        const totalExchangesCount = returnsData.filter(r => r.type === 'exchange').length;
+        const todayCount = returnsData.filter(r => r.return_date === today).length;
+
+        return {
+          success: true,
+          data: {
+            total_returns_count: totalReturnsCount,
+            total_refunds_amount: totalRefundsAmount,
+            total_exchanges_count: totalExchangesCount,
+            today_count: todayCount
+          }
+        };
+      }
+    } catch {}
+
+    const local = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+    const active = local.filter((r: any) => r.status !== 'cancelled');
+    const today = new Date().toISOString().split('T')[0];
+    return {
+      success: true,
+      data: {
+        total_returns_count: active.length,
+        total_refunds_amount: active.filter((r: any) => r.type === 'refund').reduce((s: number, r: any) => s + (Number(r.total_return_amount) || 0), 0),
+        total_exchanges_count: active.filter((r: any) => r.type === 'exchange').length,
+        today_count: active.filter((r: any) => r.return_date === today).length
+      }
+    };
+  },
+
+  getReturns: async (params?: { search?: string; party_id?: string; type?: string; order_id?: string; date_from?: string; date_to?: string }) => {
+    try {
+      const q = new URLSearchParams(params as any).toString();
+      const res = await fetch(`/api/returns?${q}`);
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    try {
+      let query = sb.from('returns').select('*, return_items(*)').order('created_at', { ascending: false });
+      if (params?.party_id && params.party_id !== 'all') query = query.eq('party_id', params.party_id);
+      if (params?.type && params.type !== 'all') query = query.eq('type', params.type);
+      if (params?.order_id) query = query.eq('order_id', params.order_id);
+      if (params?.date_from) query = query.gte('return_date', params.date_from);
+      if (params?.date_to) query = query.lte('return_date', params.date_to);
+
+      const { data, error } = await query;
+      if (!error && data) {
+        const { data: parties } = await sb.from('parties').select('id, name, phone, area');
+        const partyMap: Record<string, any> = {};
+        (parties || []).forEach(p => { partyMap[p.id] = p; });
+
+        let list = data.map(r => ({
+          ...r,
+          party_name: partyMap[r.party_id]?.name || 'Unknown Party',
+          party_phone: partyMap[r.party_id]?.phone || '',
+          party_area: partyMap[r.party_id]?.area || '',
+          returned_items: r.return_items || []
+        }));
+
+        if (params?.search) {
+          const s = params.search.toLowerCase();
+          list = list.filter(r =>
+            r.id.toLowerCase().includes(s) ||
+            r.order_id.toLowerCase().includes(s) ||
+            (r.party_name && r.party_name.toLowerCase().includes(s)) ||
+            (r.party_phone && r.party_phone.includes(s)) ||
+            (r.reason && r.reason.toLowerCase().includes(s))
+          );
+        }
+
+        return { success: true, data: list };
+      }
+    } catch {}
+
+    let list = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+    if (params?.party_id && params.party_id !== 'all') list = list.filter((r: any) => r.party_id === params.party_id);
+    if (params?.type && params.type !== 'all') list = list.filter((r: any) => r.type === params.type);
+    if (params?.order_id) list = list.filter((r: any) => r.order_id === params.order_id);
+    if (params?.date_from) list = list.filter((r: any) => r.return_date >= params.date_from);
+    if (params?.date_to) list = list.filter((r: any) => r.return_date <= params.date_to);
+    if (params?.search) {
+      const s = params.search.toLowerCase();
+      list = list.filter((r: any) =>
+        r.id.toLowerCase().includes(s) ||
+        r.order_id.toLowerCase().includes(s) ||
+        (r.party_name && r.party_name.toLowerCase().includes(s)) ||
+        (r.party_phone && r.party_phone.includes(s))
+      );
+    }
+    return { success: true, data: list };
+  },
+
+  getReturn: async (id: string) => {
+    try {
+      const res = await fetch(`/api/returns/${id}`);
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    try {
+      const { data, error } = await sb.from('returns').select('*, return_items(*)').eq('id', id).single();
+      if (!error && data) {
+        const { data: party } = await sb.from('parties').select('*').eq('id', data.party_id).single();
+        const { data: order } = await sb.from('sales_orders').select('*').eq('id', data.order_id).single();
+
+        return {
+          success: true,
+          data: {
+            ...data,
+            party_name: party?.name || 'Customer',
+            party_phone: party?.phone || '',
+            party_area: party?.area || '',
+            party_address: party?.address || '',
+            order_date: order?.order_date || '',
+            order_final_amount: order?.final_amount || 0,
+            returned_items: data.return_items || []
+          }
+        };
+      }
+    } catch {}
+
+    const list = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+    const found = list.find((r: any) => r.id === id);
+    if (found) return { success: true, data: found };
+    throw new Error(`Return #${id} not found`);
+  },
+
+  getOrderReturnable: async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/returns/order-returnable/${orderId}`);
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    const { data: order, error: orderErr } = await sb
+      .from('sales_orders')
+      .select('*, parties(name, phone, area, address)')
+      .eq('id', orderId)
+      .single();
+
+    if (orderErr || !order) {
+      throw new Error(`Invoice #${orderId} not found`);
+    }
+
+    const { data: items, error: itemsErr } = await sb
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId);
+
+    if (itemsErr) throw new Error(itemsErr.message);
+
+    let returnedMap: Record<string, number> = {};
+    try {
+      const { data: previousReturns } = await sb
+        .from('returns')
+        .select('*, return_items(*)')
+        .eq('order_id', orderId)
+        .neq('status', 'cancelled');
+
+      (previousReturns || []).forEach(r => {
+        (r.return_items || []).forEach((ri: any) => {
+          returnedMap[ri.product_id] = (returnedMap[ri.product_id] || 0) + Number(ri.return_quantity);
+        });
+      });
+    } catch {
+      const local = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+      local
+        .filter((r: any) => r.order_id === orderId && r.status !== 'cancelled')
+        .forEach((r: any) => {
+          (r.returned_items || []).forEach((ri: any) => {
+            returnedMap[ri.product_id] = (returnedMap[ri.product_id] || 0) + Number(ri.return_quantity);
+          });
+        });
+    }
+
+    const itemsWithAvailability = (items || []).map(item => {
+      const alreadyReturned = returnedMap[item.product_id] || 0;
+      const remainingReturnable = Math.max(0, Number(item.quantity) - alreadyReturned);
+      return {
+        ...item,
+        already_returned_quantity: alreadyReturned,
+        remaining_returnable_quantity: remainingReturnable,
+        is_fully_returned: remainingReturnable <= 0
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        order: {
+          ...order,
+          party_name: order.parties?.name || 'Customer',
+          party_phone: order.parties?.phone || '',
+          party_area: order.parties?.area || '',
+          party_address: order.parties?.address || ''
+        },
+        items: itemsWithAvailability
+      }
+    };
+  },
+
+  createReturn: async (returnData: any, userName: string) => {
+    try {
+      const res = await fetch('/api/returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...returnData, user_name: userName })
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    const prefix = returnData.type === 'exchange' ? 'EXC' : (returnData.type === 'refund' ? 'REF' : 'RET');
+    const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const rand = Math.floor(100 + Math.random() * 900);
+    const returnId = `${prefix}-${todayStr}-${rand}`;
+
+    for (const item of (returnData.returned_items || [])) {
+      try {
+        const { data: prod } = await sb.from('products').select('stock_quantity').eq('id', item.product_id).single();
+        if (prod) {
+          await sb.from('products').update({
+            stock_quantity: Number(prod.stock_quantity || 0) + Number(item.return_quantity)
+          }).eq('id', item.product_id);
+        }
+      } catch (e) {
+        console.warn('Could not update returned product stock in Supabase:', e);
+      }
+    }
+
+    if (returnData.type === 'exchange' && returnData.exchange_product_id) {
+      try {
+        const { data: exProd } = await sb.from('products').select('stock_quantity').eq('id', returnData.exchange_product_id).single();
+        if (exProd) {
+          await sb.from('products').update({
+            stock_quantity: Math.max(0, Number(exProd.stock_quantity || 0) - Number(returnData.exchange_quantity || 1))
+          }).eq('id', returnData.exchange_product_id);
+        }
+      } catch (e) {
+        console.warn('Could not update exchange product stock in Supabase:', e);
+      }
+    }
+
+    const returnRecord = {
+      id: returnId,
+      type: returnData.type,
+      party_id: returnData.party_id,
+      order_id: returnData.order_id,
+      return_date: returnData.return_date || new Date().toISOString().split('T')[0],
+      total_return_amount: Number(returnData.total_return_amount || 0),
+      reason: returnData.reason || null,
+      refund_method: returnData.type === 'refund' ? returnData.refund_method : null,
+      refund_reference: returnData.refund_reference || null,
+      refund_amount: returnData.type === 'refund' ? Number(returnData.total_return_amount || 0) : 0,
+      exchange_product_id: returnData.exchange_product_id || null,
+      exchange_product_name: returnData.exchange_product_name || null,
+      exchange_product_sku: returnData.exchange_product_sku || null,
+      exchange_product_unit: returnData.exchange_product_unit || null,
+      exchange_unit_price: Number(returnData.exchange_unit_price || 0),
+      exchange_quantity: Number(returnData.exchange_quantity || 0),
+      total_exchange_amount: Number(returnData.total_exchange_amount || 0),
+      difference_amount: Number(returnData.difference_amount || 0),
+      difference_action: returnData.difference_action || null,
+      difference_payment_method: returnData.difference_payment_method || null,
+      status: 'completed',
+      created_by: userName || 'Admin',
+      notes: returnData.notes || null
+    };
+
+    try {
+      await sb.from('returns').insert(returnRecord);
+      if (returnData.returned_items && returnData.returned_items.length > 0) {
+        const itemRows = returnData.returned_items.map((it: any) => ({
+          return_id: returnId,
+          product_id: it.product_id,
+          product_sku: it.product_sku || '',
+          product_name: it.product_name || '',
+          unit: it.unit || '',
+          unit_price: Number(it.unit_price || 0),
+          purchased_quantity: Number(it.purchased_quantity || 0),
+          return_quantity: Number(it.return_quantity || 0),
+          return_amount: Number(it.return_amount || 0)
+        }));
+        await sb.from('return_items').insert(itemRows);
+      }
+    } catch (err) {
+      console.warn('Supabase returns table insert skipped or unavailable, using local persistence:', err);
+    }
+
+    const completeObject = {
+      ...returnRecord,
+      party_name: returnData.party_name,
+      party_phone: returnData.party_phone,
+      party_area: returnData.party_area,
+      returned_items: returnData.returned_items || [],
+      created_at: new Date().toISOString()
+    };
+    const local = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+    local.unshift(completeObject);
+    localStorage.setItem('orderflow_returns', JSON.stringify(local));
+
+    try {
+      await sb.from('audit_logs').insert({
+        entity_type: 'RETURN',
+        entity_id: returnId,
+        action: returnData.type.toUpperCase(),
+        details: `${returnData.type.toUpperCase()} recorded for invoice #${returnData.order_id}`,
+        performed_by: userName || 'Admin'
+      });
+    } catch {}
+
+    return {
+      success: true,
+      message: `${returnData.type === 'exchange' ? 'Exchange' : (returnData.type === 'refund' ? 'Refund' : 'Return')} #${returnId} completed successfully`,
+      data: completeObject
+    };
+  },
+
+  cancelReturn: async (id: string, reason: string, userName: string) => {
+    try {
+      const res = await fetch(`/api/returns/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, user_name: userName })
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+
+    const sb = getClient();
+    try {
+      await sb.from('returns').update({ status: 'cancelled' }).eq('id', id);
+    } catch {}
+
+    const local = JSON.parse(localStorage.getItem('orderflow_returns') || '[]');
+    const idx = local.findIndex((r: any) => r.id === id);
+    if (idx !== -1) {
+      local[idx].status = 'cancelled';
+      localStorage.setItem('orderflow_returns', JSON.stringify(local));
+    }
+
+    return { success: true, message: `Return #${id} cancelled.` };
   }
 };
+
 

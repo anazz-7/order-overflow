@@ -9,6 +9,7 @@ import { PaymentsView } from './views/PaymentsView';
 import { OutstandingView } from './views/OutstandingView';
 import { ReportsView } from './views/ReportsView';
 import { SettingsView } from './views/SettingsView';
+import { ReturnsView } from './views/ReturnsView';
 import { api } from './api';
 import { UserRole, ToastMessage } from './types';
 
@@ -72,11 +73,12 @@ export function App() {
   };
 
   // Quick action from header or sidebar
-  const handleQuickCreate = (type: 'order' | 'payment' | 'party' | 'product') => {
+  const handleQuickCreate = (type: 'order' | 'payment' | 'party' | 'product' | 'return') => {
     if (type === 'order') setCurrentTab('orders');
     else if (type === 'payment') setCurrentTab('payments');
     else if (type === 'party') setCurrentTab('parties');
     else if (type === 'product') setCurrentTab('products');
+    else if (type === 'return') setCurrentTab('returns');
   };
 
   return (
@@ -115,6 +117,14 @@ export function App() {
           userRole={userRole}
           selectedOrderId={selectedOrderId}
           onClearSelectedOrder={() => setSelectedOrderId(null)}
+          onShowToast={showToast}
+          businessSettings={businessSettings}
+        />
+      )}
+
+      {currentTab === 'returns' && (
+        <ReturnsView
+          userRole={userRole}
           onShowToast={showToast}
           businessSettings={businessSettings}
         />
