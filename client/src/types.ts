@@ -237,7 +237,7 @@ export interface ReturnExchange {
   party_phone?: string;
   party_area?: string;
   party_address?: string;
-  order_id: string;
+  order_id?: string | null;
   order_date?: string;
   order_final_amount?: number;
   return_date: string;

@@ -84,7 +84,7 @@ export const PrintableReturnReceipt: React.FC<PrintableReturnReceiptProps> = ({
       `*${typeTitle} #${returnRecord.id} — ${businessName}*\n` +
       `--------------------------------\n` +
       `*Customer:* ${returnRecord.party_name || 'Valued Customer'}\n` +
-      `*Original Invoice:* #${returnRecord.order_id}\n` +
+      (returnRecord.order_id ? `*Original Invoice:* #${returnRecord.order_id}\n` : `*Type:* ${isExchange ? 'Piece-to-Piece Exchange' : 'Refund'}\n`) +
       `*Date:* ${returnRecord.return_date}\n` +
       `--------------------------------\n` +
       `*Returned Items:*\n${returnItemsText}\n` +
@@ -259,10 +259,10 @@ export const PrintableReturnReceipt: React.FC<PrintableReturnReceiptProps> = ({
 
             <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                Original Invoice Information
+                {returnRecord.order_id ? 'Original Invoice' : 'Transaction Mode'}
               </span>
               <p className="font-bold text-slate-900 font-mono text-sm">
-                Invoice #{returnRecord.order_id}
+                {returnRecord.order_id ? `Invoice #${returnRecord.order_id}` : (isExchange ? 'Piece-to-Piece Exchange' : 'Direct Store Refund')}
               </p>
               {returnRecord.order_date && (
                 <p className="text-slate-600 mt-0.5">

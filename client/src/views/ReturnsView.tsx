@@ -1,53 +1,38 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   RotateCcw,
   ArrowLeftRight,
-  CreditCard,
   Plus,
-  Search,
-  Printer,
-  Download,
-  CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  Filter,
-  Calendar,
-  Layers,
-  Package,
-  Users,
-  FileText,
-  Check,
-  X,
   Trash2,
-  TrendingUp,
-  Banknote,
-  QrCode,
-  Building,
-  ArrowRight,
-  RefreshCw,
-  Eye,
-  Info
+  Printer,
+  Search,
+  CheckCircle2,
+  Users,
+  ChevronDown,
+  RotateCw,
+  ShoppingBag,
+  Check,
+  FileText
 } from 'lucide-react';
-import * as xlsx from 'xlsx';
 import confetti from 'canvas-confetti';
 import { api } from '../api';
-import type {
-  ReturnExchange,
-  ReturnType,
-  RefundPaymentMethod,
-  Party,
-  Product,
-  SalesOrder,
-  UserRole,
-  ReturnStats
-} from '../types';
+import type { Party, Product, ReturnExchange, UserRole } from '../types';
 import { PrintableReturnReceipt } from '../components/PrintableReturnReceipt';
-import { AdminPinModal } from '../components/AdminPinModal';
 
 interface ReturnsViewProps {
   userRole: UserRole;
   onShowToast: (type: 'success' | 'error' | 'info' | 'warning', title: string, message?: string) => void;
   businessSettings?: any;
+}
+
+interface SelectedReturnItem {
+  product_id: string;
+  product_name: string;
+  product_sku: string;
+  unit: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
 }
 
 export const ReturnsView: React.FC<ReturnsViewProps> = ({
@@ -56,1295 +41,967 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
   businessSettings
 }) => {
   const [loading, setLoading] = useState(true);
-  const [returnsList, setReturnsList] = useState<ReturnExchange[]>([]);
-  const [stats, setStats] = useState<ReturnStats | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-
-  // Filter & Search State for History
+  const [recentReturns, setRecentReturns] = useState<ReturnExchange[]>([]);
   const [historySearch, setHistorySearch] = useState('');
-  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | ReturnType>('all');
-  const [historyPartyFilter, setHistoryPartyFilter] = useState('all');
-  const [historyDateFrom, setHistoryDateFrom] = useState('');
-  const [historyDateTo, setHistoryDateTo] = useState('');
 
-  // Active Modals
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // Form State: Simple 1-screen workflow
+  const [selectedPartyId, setSelectedPartyId] = useState('');
+  const [partySearchQuery, setPartySearchQuery] = useState('');
+  const [isPartyDropdownOpen, setIsPartyDropdownOpen] = useState(false);
+
+  // 2 Transaction Types only: Refund vs PCS-to-PCS Exchange
+  const [transactionType, setTransactionType] = useState<'refund' | 'exchange'>('refund');
+
+  // Returned Products List
+  const [returnItems, setReturnItems] = useState<SelectedReturnItem[]>([]);
+
+  // Quick Product Adder State
+  const [itemProductId, setItemProductId] = useState('');
+  const [itemProductSearch, setItemProductSearch] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [itemQuantity, setItemQuantity] = useState(1);
+  const [itemUnitPrice, setItemUnitPrice] = useState<number | ''>('');
+
+  // PCS-to-PCS Exchange State
+  const [exchangeProductId, setExchangeProductId] = useState('');
+  const [exchangeProductSearch, setExchangeProductSearch] = useState('');
+  const [isExchangeDropdownOpen, setIsExchangeDropdownOpen] = useState(false);
+  const [exchangeQuantity, setExchangeQuantity] = useState(1);
+  const [exchangeUnitPrice, setExchangeUnitPrice] = useState<number | ''>('');
+
+  // Saving & Preview States
+  const [isSaving, setIsSaving] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<ReturnExchange | null>(null);
 
-  // Admin PIN & Deletion State
-  const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-  const [pinActionTitle, setPinActionTitle] = useState('');
-  const [pinActionDesc, setPinActionDesc] = useState('');
-
-  // --- FORM STATE FOR NEW RETURN / REFUND / EXCHANGE ---
-  const [formType, setFormType] = useState<ReturnType>('refund');
-  const [formPartyId, setFormPartyId] = useState('');
-  const [formOrderId, setFormOrderId] = useState('');
-  const [formReturnDate, setFormReturnDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [formReason, setFormReason] = useState('Customer Request');
-  const [formCustomReason, setFormCustomReason] = useState('');
-  const [formNotes, setFormNotes] = useState('');
-
-  // Refund Specific Form State
-  const [formRefundMethod, setFormRefundMethod] = useState<RefundPaymentMethod>('Cash');
-  const [formRefundRef, setFormRefundRef] = useState('');
-
-  // Exchange Specific Form State
-  const [formExchangeProductId, setFormExchangeProductId] = useState('');
-  const [formExchangeQty, setFormExchangeQty] = useState(1);
-  const [formExchangeDiffMethod, setFormExchangeDiffMethod] = useState<RefundPaymentMethod>('Cash');
-  const [exchangeSearchQuery, setExchangeSearchQuery] = useState('');
-
-  // Loaded Invoice Data for Selected Invoice
-  const [partyOrders, setPartyOrders] = useState<SalesOrder[]>([]);
-  const [loadingPartyOrders, setLoadingPartyOrders] = useState(false);
-  const [selectedInvoiceReturnable, setSelectedInvoiceReturnable] = useState<{
-    order: any;
-    items: any[];
-  } | null>(null);
-  const [loadingInvoiceItems, setLoadingInvoiceItems] = useState(false);
-
-  // Selected Return Items Map: { productId: returnQuantity }
-  const [selectedReturnQuantities, setSelectedReturnQuantities] = useState<Record<string, number>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Load all returns history & stats
-  const loadReturnsData = useCallback(async () => {
+  // Fetch initial master data
+  const loadMasterData = async () => {
     setLoading(true);
     try {
-      const [statsRes, returnsRes] = await Promise.all([
-        api.getReturnsStats().catch(() => ({ success: false, data: null })),
-        api.getReturns({
-          search: historySearch,
-          type: historyTypeFilter,
-          party_id: historyPartyFilter,
-          date_from: historyDateFrom,
-          date_to: historyDateTo
-        })
+      const [partiesRes, prodsRes, returnsRes] = await Promise.all([
+        api.getParties(),
+        api.getProducts(),
+        api.getReturns()
       ]);
-
-      if (statsRes.success && statsRes.data) {
-        setStats(statsRes.data);
-      }
-      if (returnsRes.success) {
-        setReturnsList(returnsRes.data || []);
-      }
+      setParties(partiesRes.data || []);
+      setProducts(prodsRes.data || []);
+      setRecentReturns(returnsRes.data || []);
     } catch (err: any) {
-      console.error('Failed to load returns data:', err);
-      onShowToast('error', 'Failed to Load Returns', err.message);
+      onShowToast('error', 'Failed to Load Data', err.message || 'Could not load parties or products.');
     } finally {
       setLoading(false);
     }
-  }, [historySearch, historyTypeFilter, historyPartyFilter, historyDateFrom, historyDateTo, onShowToast]);
+  };
 
-  // Load parties and products catalog on initial mount
+  const refreshRecentReturns = async () => {
+    try {
+      const res = await api.getReturns();
+      setRecentReturns(res.data || []);
+    } catch {
+      // silently fail
+    }
+  };
+
   useEffect(() => {
-    Promise.all([
-      api.getParties({ status: 'active' }).catch(() => ({ data: [] })),
-      api.getProducts({ status: 'active' }).catch(() => ({ data: [] }))
-    ]).then(([partiesRes, productsRes]) => {
-      setParties(partiesRes.data || []);
-      setProducts(productsRes.data || []);
-    });
+    loadMasterData();
   }, []);
 
-  useEffect(() => {
-    loadReturnsData();
-  }, [loadReturnsData]);
+  // Filtered Parties for quick dropdown
+  const filteredParties = useMemo(() => {
+    const q = partySearchQuery.toLowerCase().trim();
+    if (!q) return parties.slice(0, 15);
+    return parties
+      .filter(p => p.name.toLowerCase().includes(q) || (p.phone && p.phone.includes(q)) || (p.area && p.area.toLowerCase().includes(q)))
+      .slice(0, 20);
+  }, [parties, partySearchQuery]);
 
-  // When customer is selected, load customer's confirmed invoices
-  useEffect(() => {
-    if (!formPartyId) {
-      setPartyOrders([]);
-      setFormOrderId('');
-      setSelectedInvoiceReturnable(null);
-      setSelectedReturnQuantities({});
-      return;
-    }
+  const selectedParty = useMemo(() => {
+    return parties.find(p => p.id === selectedPartyId) || null;
+  }, [parties, selectedPartyId]);
 
-    setLoadingPartyOrders(true);
-    api.getOrders({ party_id: formPartyId, status: 'confirmed' })
-      .then(res => {
-        const list = res.data || [];
-        setPartyOrders(list);
-        if (list.length > 0) {
-          setFormOrderId(list[0].id);
-        } else {
-          setFormOrderId('');
-          setSelectedInvoiceReturnable(null);
-          setSelectedReturnQuantities({});
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load party orders:', err);
-        setPartyOrders([]);
-      })
-      .finally(() => setLoadingPartyOrders(false));
-  }, [formPartyId]);
+  // Filtered Products for returned items dropdown
+  const filteredProducts = useMemo(() => {
+    const q = itemProductSearch.toLowerCase().trim();
+    if (!q) return products.slice(0, 15);
+    return products
+      .filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [products, itemProductSearch]);
 
-  // When invoice is selected, load its items and returnable quantities
-  useEffect(() => {
-    if (!formOrderId) {
-      setSelectedInvoiceReturnable(null);
-      setSelectedReturnQuantities({});
-      return;
-    }
+  // Filtered Products for replacement item dropdown
+  const filteredExchangeProducts = useMemo(() => {
+    const q = exchangeProductSearch.toLowerCase().trim();
+    if (!q) return products.slice(0, 15);
+    return products
+      .filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [products, exchangeProductSearch]);
 
-    setLoadingInvoiceItems(true);
-    api.getOrderReturnable(formOrderId)
-      .then(res => {
-        if (res.success && res.data) {
-          setSelectedInvoiceReturnable(res.data);
-          // Initialize quantities: default first returnable item to 1
-          const initQty: Record<string, number> = {};
-          let selectedOne = false;
-          (res.data.items || []).forEach(it => {
-            if (it.remaining_returnable_quantity > 0 && !selectedOne) {
-              initQty[it.product_id] = 1;
-              selectedOne = true;
-            } else {
-              initQty[it.product_id] = 0;
-            }
-          });
-          setSelectedReturnQuantities(initQty);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load invoice items:', err);
-        setSelectedInvoiceReturnable(null);
-        setSelectedReturnQuantities({});
-        onShowToast('warning', 'Could Not Load Invoice Items', err.message);
-      })
-      .finally(() => setLoadingInvoiceItems(false));
-  }, [formOrderId, onShowToast]);
-
-  // Calculate return total dynamically
-  const calculatedReturnItems = useMemo(() => {
-    if (!selectedInvoiceReturnable || !selectedInvoiceReturnable.items) return [];
-
-    return selectedInvoiceReturnable.items
-      .map(item => {
-        const qty = selectedReturnQuantities[item.product_id] || 0;
-        const unitPrice = Number(item.unit_price) || 0;
-        const amount = Math.round(qty * unitPrice * 100) / 100;
-        return {
-          ...item,
-          return_quantity: qty,
-          return_amount: amount
-        };
-      })
-      .filter(item => item.return_quantity > 0);
-  }, [selectedInvoiceReturnable, selectedReturnQuantities]);
-
-  const totalReturnAmount = useMemo(() => {
-    return calculatedReturnItems.reduce((sum, item) => sum + item.return_amount, 0);
-  }, [calculatedReturnItems]);
-
-  // Calculate exchange difference dynamically
   const selectedExchangeProduct = useMemo(() => {
-    return products.find(p => p.id === formExchangeProductId) || null;
-  }, [products, formExchangeProductId]);
+    return products.find(p => p.id === exchangeProductId) || null;
+  }, [products, exchangeProductId]);
+
+  // Financial Calculations
+  const totalReturnAmount = useMemo(() => {
+    return returnItems.reduce((sum, it) => sum + (it.quantity * it.unit_price), 0);
+  }, [returnItems]);
 
   const totalExchangeAmount = useMemo(() => {
-    if (!selectedExchangeProduct) return 0;
-    const price = Number(selectedExchangeProduct.selling_price) || 0;
-    return Math.round(price * formExchangeQty * 100) / 100;
-  }, [selectedExchangeProduct, formExchangeQty]);
+    if (transactionType !== 'exchange' || !selectedExchangeProduct) return 0;
+    const price = typeof exchangeUnitPrice === 'number' ? exchangeUnitPrice : (Number(selectedExchangeProduct.selling_price) || 0);
+    return Math.round(exchangeQuantity * price * 100) / 100;
+  }, [transactionType, selectedExchangeProduct, exchangeQuantity, exchangeUnitPrice]);
 
-  const differenceAmount = useMemo(() => {
-    if (formType !== 'exchange') return 0;
+  // Difference: Replacement Value minus Returned Value
+  const exchangeDifference = useMemo(() => {
     return Math.round((totalExchangeAmount - totalReturnAmount) * 100) / 100;
-  }, [formType, totalExchangeAmount, totalReturnAmount]);
+  }, [totalExchangeAmount, totalReturnAmount]);
 
-  const differenceAction = useMemo(() => {
-    if (differenceAmount > 0) return 'customer_pays';
-    if (differenceAmount < 0) return 'store_refunds';
-    return 'even';
-  }, [differenceAmount]);
-
-  // Quick preset reasons
-  const reasonPresets = [
-    'Customer Request',
-    'Defective / Damaged',
-    'Expired Product',
-    'Wrong Item Delivered',
-    'Size / Brand Exchange',
-    'Quality Unsatisfactory',
-    'Other'
-  ];
-
-  // Open creation modal
-  const handleOpenCreateModal = (type: ReturnType = 'refund') => {
-    setFormType(type);
-    setIsCreateModalOpen(true);
+  // Handle selecting a product in the Return Items box
+  const handleSelectProduct = (prod: Product) => {
+    setItemProductId(prod.id);
+    setItemProductSearch(`${prod.name} (${prod.sku})`);
+    setItemUnitPrice(Number(prod.selling_price) || 0);
+    setIsProductDropdownOpen(false);
   };
 
-  // Submit Return / Refund / Exchange
-  const handleSubmitReturn = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formPartyId) {
-      onShowToast('error', 'Select Customer', 'Please select a customer.');
+  // Add product to returned items list
+  const handleAddReturnItem = () => {
+    if (!itemProductId) {
+      onShowToast('warning', 'Select Product', 'Please select a product from the catalog.');
       return;
     }
-    if (!formOrderId) {
-      onShowToast('error', 'Select Invoice', 'Please select the original invoice.');
+    const prod = products.find(p => p.id === itemProductId);
+    if (!prod) return;
+
+    const qty = parseInt(String(itemQuantity), 10);
+    if (isNaN(qty) || qty <= 0) {
+      onShowToast('warning', 'Invalid Quantity', 'Please enter a valid quantity greater than zero.');
       return;
     }
-    if (calculatedReturnItems.length === 0) {
-      onShowToast('error', 'No Items Selected', 'Please enter a return quantity greater than 0 for at least one item.');
+
+    const price = typeof itemUnitPrice === 'number' ? itemUnitPrice : (Number(prod.selling_price) || 0);
+    if (price < 0) {
+      onShowToast('warning', 'Invalid Price', 'Price cannot be negative.');
       return;
     }
 
-    if (formType === 'exchange') {
-      if (!formExchangeProductId) {
-        onShowToast('error', 'Select Replacement Product', 'Please choose a replacement product for exchange.');
-        return;
-      }
-      if (!selectedExchangeProduct) {
-        onShowToast('error', 'Invalid Product', 'Replacement product not found.');
-        return;
-      }
-      if (selectedExchangeProduct.stock_quantity < formExchangeQty) {
-        onShowToast(
-          'error',
-          'Insufficient Stock',
-          `Only ${selectedExchangeProduct.stock_quantity} units available in inventory for "${selectedExchangeProduct.name}".`
-        );
-        return;
-      }
-    }
-
-    const finalReason = formReason === 'Other' ? formCustomReason || 'Other' : formReason;
-    const selectedParty = parties.find(p => p.id === formPartyId);
-
-    const payload = {
-      type: formType,
-      party_id: formPartyId,
-      party_name: selectedParty?.name,
-      party_phone: selectedParty?.phone,
-      party_area: selectedParty?.area,
-      order_id: formOrderId,
-      return_date: formReturnDate,
-      returned_items: calculatedReturnItems,
-      total_return_amount: totalReturnAmount,
-      reason: finalReason,
-      refund_method: formType === 'refund' ? formRefundMethod : null,
-      refund_reference: formType === 'refund' ? formRefundRef : null,
-      exchange_product_id: formType === 'exchange' ? formExchangeProductId : null,
-      exchange_product_name: formType === 'exchange' ? selectedExchangeProduct?.name : null,
-      exchange_product_sku: formType === 'exchange' ? selectedExchangeProduct?.sku : null,
-      exchange_product_unit: formType === 'exchange' ? selectedExchangeProduct?.unit : null,
-      exchange_unit_price: formType === 'exchange' ? Number(selectedExchangeProduct?.selling_price) : 0,
-      exchange_quantity: formType === 'exchange' ? formExchangeQty : 0,
-      total_exchange_amount: formType === 'exchange' ? totalExchangeAmount : 0,
-      difference_amount: differenceAmount,
-      difference_action: differenceAction,
-      difference_payment_method: formType === 'exchange' ? formExchangeDiffMethod : null,
-      notes: formNotes
-    };
-
-    setIsSubmitting(true);
-    try {
-      const res = await api.createReturn(payload, userRole === 'admin' ? 'Owner / Admin' : 'Staff');
-      if (res.success) {
-        onShowToast('success', `${formType === 'exchange' ? 'Exchange' : formType === 'refund' ? 'Refund' : 'Return'} Completed`, res.message);
-        
-        confetti({
-          particleCount: 40,
-          spread: 60,
-          origin: { y: 0.6 }
-        });
-
-        setIsCreateModalOpen(false);
-        setActiveReceipt(res.data);
-        loadReturnsData();
-
-        // Refresh products catalog in background to reflect stock updates
-        api.getProducts({ status: 'active' }).then(prodRes => setProducts(prodRes.data || []));
-      }
-    } catch (err: any) {
-      console.error('Failed to create return:', err);
-      onShowToast('error', 'Transaction Failed', err.message || 'Could not process return');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Cancel / Delete Return (with Admin PIN)
-  const handleRequestCancelReturn = (record: ReturnExchange) => {
-    if (record.status === 'cancelled') return;
-
-    setPinActionTitle(`Cancel ${record.type.toUpperCase()} #${record.id}`);
-    setPinActionDesc(`This will reverse restocked inventory for items in return #${record.id}.`);
-    setPendingAction(() => async () => {
-      try {
-        const res = await api.cancelReturn(record.id, 'Cancelled by administrator', userRole);
-        if (res.success) {
-          onShowToast('success', 'Return Cancelled', res.message);
-          loadReturnsData();
-          api.getProducts({ status: 'active' }).then(prodRes => setProducts(prodRes.data || []));
+    // Check if already in list -> increment quantity
+    const existingIndex = returnItems.findIndex(it => it.product_id === prod.id);
+    if (existingIndex >= 0) {
+      const updated = [...returnItems];
+      updated[existingIndex].quantity += qty;
+      updated[existingIndex].unit_price = price;
+      updated[existingIndex].line_total = updated[existingIndex].quantity * price;
+      setReturnItems(updated);
+    } else {
+      setReturnItems(prev => [
+        ...prev,
+        {
+          product_id: prod.id,
+          product_name: prod.name,
+          product_sku: prod.sku,
+          unit: prod.unit,
+          unit_price: price,
+          quantity: qty,
+          line_total: Math.round(qty * price * 100) / 100
         }
-      } catch (err: any) {
-        onShowToast('error', 'Cancellation Failed', err.message);
-      }
-    });
-    setPinModalOpen(true);
+      ]);
+    }
+
+    // Clear item inputs for next product
+    setItemProductId('');
+    setItemProductSearch('');
+    setItemQuantity(1);
+    setItemUnitPrice('');
   };
 
-  // Export Return History to Excel
-  const handleExportExcel = () => {
-    if (returnsList.length === 0) {
-      onShowToast('info', 'No Data', 'No returns records to export.');
+  // Remove item from returned items
+  const handleRemoveReturnItem = (productId: string) => {
+    setReturnItems(prev => prev.filter(it => it.product_id !== productId));
+  };
+
+  // Adjust quantity of item in list
+  const handleUpdateItemQty = (productId: string, newQty: number) => {
+    if (newQty <= 0) {
+      handleRemoveReturnItem(productId);
+      return;
+    }
+    setReturnItems(prev =>
+      prev.map(it =>
+        it.product_id === productId
+          ? { ...it, quantity: newQty, line_total: Math.round(newQty * it.unit_price * 100) / 100 }
+          : it
+      )
+    );
+  };
+
+  // Handle selecting replacement product for exchange
+  const handleSelectExchangeProduct = (prod: Product) => {
+    setExchangeProductId(prod.id);
+    setExchangeProductSearch(`${prod.name} (${prod.sku})`);
+    setExchangeUnitPrice(Number(prod.selling_price) || 0);
+    setIsExchangeDropdownOpen(false);
+  };
+
+  // Reset entire form
+  const handleResetForm = () => {
+    setSelectedPartyId('');
+    setPartySearchQuery('');
+    setReturnItems([]);
+    setItemProductId('');
+    setItemProductSearch('');
+    setItemQuantity(1);
+    setItemUnitPrice('');
+    setExchangeProductId('');
+    setExchangeProductSearch('');
+    setExchangeQuantity(1);
+    setExchangeUnitPrice('');
+    setTransactionType('refund');
+  };
+
+  // Save and Print Handler
+  const handleSaveAndPrint = async () => {
+    if (isSaving) return;
+
+    if (!selectedPartyId) {
+      onShowToast('error', 'Customer Required', 'Please select an existing customer.');
       return;
     }
 
-    const rows = returnsList.map(r => ({
-      'Receipt #': r.id,
-      'Type': r.type.toUpperCase(),
-      'Date': r.return_date,
-      'Customer': r.party_name || r.party_id,
-      'Phone': r.party_phone || '',
-      'Original Invoice': r.order_id,
-      'Return Amount (₹)': r.total_return_amount,
-      'Refund Method': r.refund_method || '',
-      'Replacement Product': r.exchange_product_name || '',
-      'Exchange Qty': r.exchange_quantity || '',
-      'Difference Amount (₹)': r.difference_amount || 0,
-      'Difference Action': r.difference_action || '',
-      'Status': r.status.toUpperCase(),
-      'Reason': r.reason || '',
-      'Created By': r.created_by
-    }));
+    if (returnItems.length === 0) {
+      onShowToast('error', 'Product Required', 'Please add at least one returned product.');
+      return;
+    }
 
-    const worksheet = xlsx.utils.json_to_sheet(rows);
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Returns_Exchanges');
-    xlsx.writeFile(workbook, `Returns_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
-    onShowToast('success', 'Exported', 'Return history downloaded as Excel file.');
+    if (transactionType === 'exchange') {
+      if (!exchangeProductId) {
+        onShowToast('error', 'Replacement Product Required', 'Please select a replacement product for the exchange.');
+        return;
+      }
+      if (exchangeQuantity <= 0) {
+        onShowToast('error', 'Invalid Quantity', 'Replacement quantity must be at least 1.');
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const payload: any = {
+        type: transactionType,
+        party_id: selectedPartyId,
+        returned_items: returnItems.map(it => ({
+          product_id: it.product_id,
+          return_quantity: it.quantity,
+          unit_price: it.unit_price
+        }))
+      };
+
+      if (transactionType === 'exchange') {
+        payload.exchange_product_id = exchangeProductId;
+        payload.exchange_quantity = exchangeQuantity;
+        if (typeof exchangeUnitPrice === 'number') {
+          payload.exchange_unit_price = exchangeUnitPrice;
+        }
+      }
+
+      const res = await api.createReturn(payload, userRole === 'admin' ? 'Owner (Admin)' : 'Staff');
+
+      confetti({
+        particleCount: 60,
+        spread: 70,
+        origin: { y: 0.7 }
+      });
+
+      onShowToast(
+        'success',
+        transactionType === 'exchange' ? 'Exchange Saved' : 'Refund Saved',
+        `Transaction recorded and inventory updated.`
+      );
+
+      // Open print receipt modal immediately
+      if (res.data) {
+        setActiveReceipt(res.data);
+      }
+
+      // Reset form for next customer
+      handleResetForm();
+      refreshRecentReturns();
+    } catch (err: any) {
+      onShowToast('error', 'Save Failed', err.message || 'Failed to save return.');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // Filtered recent returns
+  const filteredRecentReturns = useMemo(() => {
+    if (!historySearch.trim()) return recentReturns.slice(0, 15);
+    const q = historySearch.toLowerCase().trim();
+    return recentReturns.filter(
+      r =>
+        r.id.toLowerCase().includes(q) ||
+        (r.party_name && r.party_name.toLowerCase().includes(q)) ||
+        (r.party_phone && r.party_phone.includes(q))
+    );
+  }, [recentReturns, historySearch]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-10 bg-slate-200 rounded-xl w-64"></div>
+        <div className="h-64 bg-slate-100 rounded-2xl"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* View Header with 3 Quick Action Buttons */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 pb-12">
+      {/* Page Title & Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold shadow-sm">
-              <RotateCcw className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                Returns & Exchanges
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-500">
-                Process customer returns, instant refunds, and product replacements with real-time stock sync
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <RotateCcw className="w-6 h-6 text-indigo-600" />
+            Returns & Exchanges
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Select Customer → Add Products → Choose Refund or Exchange → Save & Print
+          </p>
         </div>
 
-        {/* The 3 Core Buttons */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          <button
-            onClick={() => handleOpenCreateModal('return')}
-            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4 text-indigo-600" />
-            <span>Return</span>
-          </button>
-
-          <button
-            onClick={() => handleOpenCreateModal('refund')}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
-          >
-            <Banknote className="w-4 h-4 text-white" />
-            <span>Refund</span>
-          </button>
-
-          <button
-            onClick={() => handleOpenCreateModal('exchange')}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
-          >
-            <ArrowLeftRight className="w-4 h-4 text-white" />
-            <span>Exchange</span>
-          </button>
+        {/* Quick Stock Indicator Badge */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Automatic Stock Updates Enabled
+          </span>
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Returns</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <RotateCcw className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 font-mono">
-            {stats ? stats.total_returns_count : returnsList.length}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Recorded in store</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Refunds Paid</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Banknote className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-2 font-mono">
-            ₹
-            {Number(
-              stats?.total_refunds_amount ??
-                returnsList
-                  .filter(r => r.type === 'refund')
-                  .reduce((sum, r) => sum + (Number(r.total_return_amount) || 0), 0)
-            ).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Via Cash, UPI & Bank</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Product Exchanges</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <ArrowLeftRight className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono">
-            {stats ? stats.total_exchanges_count : returnsList.filter(r => r.type === 'exchange').length}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Inventory replaced</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Today's Activity</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 font-mono">
-            {stats ? stats.today_count : 0}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Processed today</p>
-        </div>
-      </div>
-
-      {/* Return History Section */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        {/* Filter & Search Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-2xl">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search by customer name, receipt #, invoice #..."
-                value={historySearch}
-                onChange={e => setHistorySearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-              {historySearch && (
-                <button
-                  onClick={() => setHistorySearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Type Filter Buttons */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs font-semibold shrink-0">
-              <button
-                onClick={() => setHistoryTypeFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  historyTypeFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setHistoryTypeFilter('return')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  historyTypeFilter === 'return' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Returns
-              </button>
-              <button
-                onClick={() => setHistoryTypeFilter('refund')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  historyTypeFilter === 'refund' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Refunds
-              </button>
-              <button
-                onClick={() => setHistoryTypeFilter('exchange')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  historyTypeFilter === 'exchange' ? 'bg-white text-purple-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Exchanges
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleExportExcel}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+      {/* MAIN CLEAN SCREEN CARD */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-6 space-y-6">
+        {/* STEP 1: PARTY SELECTION */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-indigo-600" />
+            1. Select Customer (Party)
+          </label>
+          <div className="relative">
+            <div
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border rounded-xl cursor-pointer transition-colors ${
+                selectedParty ? 'border-indigo-500 bg-indigo-50/20' : 'border-slate-300 hover:bg-slate-100/70'
+              }`}
+              onClick={() => setIsPartyDropdownOpen(!isPartyDropdownOpen)}
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Excel Export</span>
-            </button>
-            <button
-              onClick={loadReturnsData}
-              title="Refresh"
-              className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs transition-colors cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* History Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-50/80 text-slate-700 font-bold border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-4">Receipt #</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Invoice #</th>
-                <th className="py-3 px-4 text-center">Type</th>
-                <th className="py-3 px-4">Items Summary</th>
-                <th className="py-3 px-4 text-right">Return Value</th>
-                <th className="py-3 px-4 text-right">Settlement</th>
-                <th className="py-3 px-4 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
-                      <p className="text-xs">Loading returns history...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : returnsList.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
-                        <RotateCcw className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-800 text-sm">No Returns or Exchanges Found</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Click Return, Refund, or Exchange above to process your first return.
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                returnsList.map(record => {
-                  const isEx = record.type === 'exchange';
-                  const isRef = record.type === 'refund';
-                  const isCancelled = record.status === 'cancelled';
-
-                  return (
-                    <tr
-                      key={record.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isCancelled ? 'opacity-50 bg-slate-50/40 line-through' : ''
-                      }`}
-                    >
-                      {/* Receipt ID & Date */}
-                      <td className="py-3 px-4 font-mono">
-                        <span className="font-bold text-slate-900 block">{record.id}</span>
-                        <span className="text-[11px] text-slate-500 font-sans">{record.return_date}</span>
-                      </td>
-
-                      {/* Customer Info */}
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-slate-900 block">{record.party_name || 'Customer'}</span>
-                        {record.party_phone && (
-                          <span className="text-[11px] text-slate-500 font-mono block">{record.party_phone}</span>
-                        )}
-                      </td>
-
-                      {/* Original Invoice */}
-                      <td className="py-3 px-4 font-mono">
-                        <span className="text-slate-800 font-semibold block">#{record.order_id}</span>
-                        {record.reason && (
-                          <span className="text-[10px] text-slate-500 truncate block max-w-[140px] font-sans" title={record.reason}>
-                            {record.reason}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Type Badge */}
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                            isEx
-                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                              : isRef
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                          }`}
-                        >
-                          {isEx ? (
-                            <ArrowLeftRight className="w-3 h-3" />
-                          ) : isRef ? (
-                            <Banknote className="w-3 h-3" />
-                          ) : (
-                            <RotateCcw className="w-3 h-3" />
-                          )}
-                          {record.type}
-                        </span>
-                      </td>
-
-                      {/* Items Summary */}
-                      <td className="py-3 px-4">
-                        <div className="max-w-xs text-xs">
-                          {(record.returned_items || []).slice(0, 2).map((it, idx) => (
-                            <p key={idx} className="text-slate-700 truncate">
-                              • {it.product_name} <span className="font-semibold text-slate-900">x{it.return_quantity}</span>
-                            </p>
-                          ))}
-                          {(record.returned_items || []).length > 2 && (
-                            <p className="text-[10px] text-slate-400">
-                              +{(record.returned_items || []).length - 2} more item(s)
-                            </p>
-                          )}
-                          {isEx && record.exchange_product_name && (
-                            <p className="text-[11px] text-purple-700 font-medium truncate mt-0.5">
-                              Exchanged for: {record.exchange_product_name} (x{record.exchange_quantity})
-                            </p>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Total Return Amount */}
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
-                        ₹{Number(record.total_return_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-
-                      {/* Settlement Breakdown */}
-                      <td className="py-3 px-4 text-right text-xs">
-                        {isRef ? (
-                          <div className="text-right">
-                            <span className="font-bold text-emerald-700 font-mono block">
-                              Refund: ₹{Number(record.total_return_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-medium">{record.refund_method || 'Cash'}</span>
-                          </div>
-                        ) : isEx ? (
-                          <div className="text-right">
-                            <span
-                              className={`font-bold font-mono block ${
-                                record.difference_action === 'customer_pays'
-                                  ? 'text-amber-700'
-                                  : record.difference_action === 'store_refunds'
-                                  ? 'text-emerald-700'
-                                  : 'text-slate-700'
-                              }`}
-                            >
-                              {record.difference_action === 'customer_pays'
-                                ? `+₹${Number(record.difference_amount).toLocaleString('en-IN')}`
-                                : record.difference_action === 'store_refunds'
-                                ? `-₹${Math.abs(Number(record.difference_amount || 0)).toLocaleString('en-IN')}`
-                                : 'Even (₹0)'}
-                            </span>
-                            <span className="text-[10px] text-slate-500">
-                              {record.difference_action === 'customer_pays'
-                                ? 'Customer Paid'
-                                : record.difference_action === 'store_refunds'
-                                ? 'Refunded'
-                                : 'Settled'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-indigo-700 font-medium text-xs">Store Credit</span>
-                        )}
-                      </td>
-
-                      {/* Action: View & Reprint Receipt */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => setActiveReceipt(record)}
-                            title="View & Reprint Receipt"
-                            className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Receipt</span>
-                          </button>
-
-                          {userRole === 'admin' && !isCancelled && (
-                            <button
-                              onClick={() => handleRequestCancelReturn(record)}
-                              title="Cancel & Revert Stock"
-                              className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* MODAL: SIMPLE, FAST RETURN / REFUND / EXCHANGE INTERFACE */}
-      {/* ========================================================================= */}
-      {isCreateModalOpen && (
-        <div 
-          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 bg-slate-900/80 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 pb-safe overflow-y-auto"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsCreateModalOpen(false);
-          }}
-        >
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-2 sm:my-3 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col animate-in fade-in zoom-in-95">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shadow-xs ${
-                    formType === 'exchange'
-                      ? 'bg-purple-600'
-                      : formType === 'refund'
-                      ? 'bg-emerald-600'
-                      : 'bg-indigo-600'
-                  }`}
-                >
-                  {formType === 'exchange' ? (
-                    <ArrowLeftRight className="w-5 h-5" />
-                  ) : formType === 'refund' ? (
-                    <Banknote className="w-5 h-5" />
-                  ) : (
-                    <RotateCcw className="w-5 h-5" />
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    New {formType === 'exchange' ? 'Exchange' : formType === 'refund' ? 'Refund' : 'Return'}
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Simple 3-step operation for daily counter billing
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitReturn} className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto overscroll-contain">
-              {/* Top 3 Toggle Buttons: Return, Refund, Exchange */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Select Operation
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormType('return')}
-                    className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      formType === 'return'
-                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/20'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Return</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormType('refund')}
-                    className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      formType === 'refund'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Banknote className="w-4 h-4 text-emerald-600" />
-                    <span>Refund</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormType('exchange')}
-                    className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      formType === 'exchange'
-                        ? 'bg-purple-50 border-purple-500 text-purple-800 ring-2 ring-purple-500/20'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <ArrowLeftRight className="w-4 h-4 text-purple-600" />
-                    <span>Exchange</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Step 1: Customer & Original Invoice */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Customer (Party) *
-                  </label>
-                  <select
-                    value={formPartyId}
-                    onChange={e => setFormPartyId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose Customer --</option>
-                    {parties.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.phone})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Original Invoice # *</span>
-                    {loadingPartyOrders && <span className="text-[10px] text-slate-400">Loading...</span>}
-                  </label>
-                  <select
-                    value={formOrderId}
-                    onChange={e => setFormOrderId(e.target.value)}
-                    required
-                    disabled={!formPartyId || partyOrders.length === 0}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50"
-                  >
-                    <option value="">
-                      {!formPartyId
-                        ? '-- Select customer first --'
-                        : partyOrders.length === 0
-                        ? '-- No invoices found --'
-                        : '-- Select Invoice --'}
-                    </option>
-                    {partyOrders.map(o => (
-                      <option key={o.id} value={o.id}>
-                        #{o.id} — {o.order_date} (₹{Number(o.final_amount).toLocaleString('en-IN')})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Step 2: Purchased Products Table with Return Quantity */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                <div className="p-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Package className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Purchased Products in Invoice
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                {selectedParty ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-bold text-sm text-slate-900 truncate">{selectedParty.name}</span>
+                    <span className="text-xs text-slate-500 shrink-0">
+                      • {selectedParty.area} {selectedParty.phone ? `(${selectedParty.phone})` : ''}
                     </span>
-                  </div>
-                  {loadingInvoiceItems && (
-                    <span className="text-xs text-indigo-600 flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
-                    </span>
-                  )}
-                </div>
-
-                {selectedInvoiceReturnable && selectedInvoiceReturnable.items ? (
-                  <div className="divide-y divide-slate-100">
-                    {selectedInvoiceReturnable.items.map(item => {
-                      const returnQty = selectedReturnQuantities[item.product_id] || 0;
-                      const maxAllowed = item.remaining_returnable_quantity;
-                      const isFullyReturned = item.is_fully_returned;
-
-                      return (
-                        <div
-                          key={item.product_id}
-                          className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                            returnQty > 0 ? 'bg-indigo-50/30' : ''
-                          } ${isFullyReturned ? 'opacity-50 bg-slate-50' : ''}`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                                {item.product_name}
-                              </p>
-                              {isFullyReturned && (
-                                <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-semibold shrink-0">
-                                  Fully Returned
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-0.5">
-                              <span>Unit: {item.unit}</span>
-                              <span className="font-mono">
-                                Price: ₹{Number(item.unit_price).toLocaleString('en-IN')}
-                              </span>
-                              <span>
-                                Invoiced: <strong className="text-slate-700">{item.quantity}</strong>
-                              </span>
-                              {item.already_returned_quantity > 0 && (
-                                <span className="text-amber-700 font-medium">
-                                  Already Returned: {item.already_returned_quantity}
-                                </span>
-                              )}
-                              <span className="text-emerald-700 font-bold">
-                                Returnable: {maxAllowed}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Quantity Selector */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs text-slate-500 hidden sm:inline">Return Qty:</span>
-                            <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white">
-                              <button
-                                type="button"
-                                disabled={isFullyReturned || returnQty <= 0}
-                                onClick={() =>
-                                  setSelectedReturnQuantities(prev => ({
-                                    ...prev,
-                                    [item.product_id]: Math.max(0, returnQty - 1)
-                                  }))
-                                }
-                                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-sm disabled:opacity-40 cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <input
-                                type="number"
-                                min={0}
-                                max={maxAllowed}
-                                value={returnQty}
-                                disabled={isFullyReturned}
-                                onChange={e => {
-                                  const val = parseInt(e.target.value, 10);
-                                  const clamped = isNaN(val) ? 0 : Math.min(maxAllowed, Math.max(0, val));
-                                  setSelectedReturnQuantities(prev => ({
-                                    ...prev,
-                                    [item.product_id]: clamped
-                                  }));
-                                }}
-                                className="w-12 text-center py-1.5 text-xs font-bold font-mono text-slate-900 focus:outline-none"
-                              />
-                              <button
-                                type="button"
-                                disabled={isFullyReturned || returnQty >= maxAllowed}
-                                onClick={() =>
-                                  setSelectedReturnQuantities(prev => ({
-                                    ...prev,
-                                    [item.product_id]: Math.min(maxAllowed, returnQty + 1)
-                                  }))
-                                }
-                                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-sm disabled:opacity-40 cursor-pointer"
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            <div className="w-20 text-right font-mono font-bold text-xs sm:text-sm text-slate-900">
-                              ₹{(returnQty * Number(item.unit_price)).toLocaleString('en-IN')}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-xs text-slate-500">
-                    Select a customer and original invoice above to view purchased products.
-                  </div>
-                )}
-
-                {/* Return Total Subtotal Banner */}
-                {totalReturnAmount > 0 && (
-                  <div className="p-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs sm:text-sm">
-                    <span className="font-bold text-slate-700">Calculated Return Amount:</span>
-                    <span className="font-mono font-bold text-indigo-700 text-base">
-                      ₹{totalReturnAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
+                  <span className="text-sm text-slate-400 font-medium">Search or select customer from list...</span>
                 )}
               </div>
+              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+            </div>
 
-              {/* Step 3: Refund Method Selection (if type === 'refund') */}
-              {formType === 'refund' && (
-                <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-emerald-700" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-                      Refund Payment Method
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {(['Cash', 'UPI', 'Bank Transfer'] as RefundPaymentMethod[]).map(method => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setFormRefundMethod(method)}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                          formRefundMethod === method
-                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        {method === 'Cash' && <Banknote className="w-3.5 h-3.5" />}
-                        {method === 'UPI' && <QrCode className="w-3.5 h-3.5" />}
-                        {method === 'Bank Transfer' && <Building className="w-3.5 h-3.5" />}
-                        <span>{method}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {formRefundMethod !== 'Cash' && (
-                    <div>
-                      <label className="block text-[11px] font-medium text-emerald-900 mb-1">
-                        {formRefundMethod} Reference / Transaction ID (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. UPI/4921048129 or NEFT Ref"
-                        value={formRefundRef}
-                        onChange={e => setFormRefundRef(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 3 (Exchange): Replacement Product & Difference Calculation */}
-              {formType === 'exchange' && (
-                <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ArrowLeftRight className="w-4 h-4 text-purple-700" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-purple-900">
-                        Select Replacement Product
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Replacement Product Search & Dropdown */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-semibold text-purple-900 mb-1">
-                        Product from Catalog *
-                      </label>
-                      <select
-                        value={formExchangeProductId}
-                        onChange={e => setFormExchangeProductId(e.target.value)}
-                        required={formType === 'exchange'}
-                        className="w-full px-3 py-2.5 bg-white border border-purple-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-purple-500/20"
-                      >
-                        <option value="">-- Select Replacement Item --</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} (₹{Number(p.selling_price).toLocaleString('en-IN')} / {p.unit}) — Stock: {p.stock_quantity}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-purple-900 mb-1">
-                        Replacement Qty *
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={formExchangeQty}
-                        onChange={e => setFormExchangeQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        required
-                        className="w-full px-3 py-2.5 bg-white border border-purple-300 rounded-xl text-xs sm:text-sm font-mono font-bold focus:ring-2 focus:ring-purple-500/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Replacement Item Summary & Stock Check */}
-                  {selectedExchangeProduct && (
-                    <div className="p-3 bg-white rounded-xl border border-purple-200 text-xs flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-slate-900">{selectedExchangeProduct.name}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {formExchangeQty} {selectedExchangeProduct.unit} @ ₹
-                          {Number(selectedExchangeProduct.selling_price).toLocaleString('en-IN')} each
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold font-mono text-purple-900 text-sm block">
-                          ₹{totalExchangeAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </span>
-                        <span
-                          className={`text-[10px] font-semibold ${
-                            selectedExchangeProduct.stock_quantity >= formExchangeQty
-                              ? 'text-emerald-700'
-                              : 'text-rose-600'
-                          }`}
-                        >
-                          Stock Available: {selectedExchangeProduct.stock_quantity}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Difference Banner */}
-                  {selectedExchangeProduct && totalReturnAmount > 0 && (
-                    <div
-                      className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
-                        differenceAction === 'customer_pays'
-                          ? 'bg-amber-100 border-amber-300 text-amber-950'
-                          : differenceAction === 'store_refunds'
-                          ? 'bg-emerald-100 border-emerald-300 text-emerald-950'
-                          : 'bg-indigo-100 border-indigo-300 text-indigo-950'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-wider block">
-                          {differenceAction === 'customer_pays'
-                            ? 'Customer Must Pay Difference'
-                            : differenceAction === 'store_refunds'
-                            ? 'Store Refunds Customer'
-                            : 'Even Exchange'}
-                        </span>
-                        <p className="text-xs mt-0.5 opacity-90">
-                          Replacement (₹{totalExchangeAmount}) - Return (₹{totalReturnAmount})
-                        </p>
-                      </div>
-
-                      <div className="text-left sm:text-right">
-                        <span className="text-base sm:text-lg font-black font-mono block">
-                          {differenceAction === 'even'
-                            ? '₹0.00'
-                            : `₹${Math.abs(differenceAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                        </span>
-                        {differenceAction !== 'even' && (
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-[10px] font-medium">Mode:</span>
-                            {(['Cash', 'UPI', 'Bank Transfer'] as RefundPaymentMethod[]).map(m => (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => setFormExchangeDiffMethod(m)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer border ${
-                                  formExchangeDiffMethod === m
-                                    ? 'bg-slate-900 text-white border-slate-900'
-                                    : 'bg-white text-slate-700 border-slate-300'
-                                }`}
-                              >
-                                {m}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 4: Optional Reason & Notes */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Reason for Return / Exchange (Optional)
-                </label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {reasonPresets.map(preset => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setFormReason(preset)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                        formReason === preset
-                          ? 'bg-slate-900 text-white border-slate-900'
-                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-
-                {formReason === 'Other' && (
+            {/* Dropdown Options */}
+            {isPartyDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                <div className="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
                   <input
                     type="text"
-                    placeholder="Enter specific return reason..."
-                    value={formCustomReason}
-                    onChange={e => setFormCustomReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={partySearchQuery}
+                    onChange={e => setPartySearchQuery(e.target.value)}
+                    placeholder="Type name, phone or area..."
+                    className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-indigo-500"
+                    autoFocus
                   />
+                </div>
+                {filteredParties.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400">No customers found.</div>
+                ) : (
+                  filteredParties.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedPartyId(p.id);
+                        setIsPartyDropdownOpen(false);
+                        setPartySearchQuery('');
+                      }}
+                      className="px-3.5 py-2.5 hover:bg-indigo-50/60 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-b-0 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{p.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{p.area} • {p.phone}</p>
+                      </div>
+                      {selectedPartyId === p.id && (
+                        <Check className="w-4 h-4 text-indigo-600 shrink-0" />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* STEP 2: TRANSACTION TYPE TOGGLE (ONLY 2 OPTIONS: REFUND vs PCS-to-PCS EXCHANGE) */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+            2. Transaction Type
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Refund Button */}
+            <button
+              type="button"
+              onClick={() => setTransactionType('refund')}
+              className={`p-3.5 rounded-xl border-2 text-left flex items-start gap-3 transition-all cursor-pointer active:scale-98 ${
+                transactionType === 'refund'
+                  ? 'border-emerald-600 bg-emerald-50/40 shadow-xs'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
+              }`}
+            >
+              <div
+                className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  transactionType === 'refund' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="block font-black text-sm text-slate-900">Refund</span>
+                <span className="text-xs text-slate-500 leading-tight block mt-0.5">
+                  Return items and pay refund amount to customer
+                </span>
+              </div>
+            </button>
+
+            {/* PCS-to-PCS Exchange Button */}
+            <button
+              type="button"
+              onClick={() => setTransactionType('exchange')}
+              className={`p-3.5 rounded-xl border-2 text-left flex items-start gap-3 transition-all cursor-pointer active:scale-98 ${
+                transactionType === 'exchange'
+                  ? 'border-indigo-600 bg-indigo-50/40 shadow-xs'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
+              }`}
+            >
+              <div
+                className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  transactionType === 'exchange' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                <ArrowLeftRight className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="block font-black text-sm text-slate-900">PCS-to-PCS Exchange</span>
+                <span className="text-xs text-slate-500 leading-tight block mt-0.5">
+                  Swap returned product with replacement product (auto difference)
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* STEP 3: PRODUCT SELECTION */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <ShoppingBag className="w-4 h-4 text-indigo-600" />
+              3. Returned Products (Customer Giving Back)
+            </label>
+            <span className="text-xs font-bold text-slate-500">
+              {returnItems.length} Item(s) Selected
+            </span>
+          </div>
+
+          {/* Quick Product Adder Input Bar */}
+          <div className="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200/90 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+              {/* Product Search & Dropdown */}
+              <div className="sm:col-span-6 relative">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Select Product</label>
+                <div
+                  className="w-full flex items-center justify-between px-3 py-2 bg-white border border-slate-300 rounded-lg cursor-pointer text-xs"
+                  onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
+                >
+                  <span className={itemProductId ? 'font-semibold text-slate-900 truncate' : 'text-slate-400'}>
+                    {itemProductSearch || 'Search product name or SKU...'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                </div>
+
+                {isProductDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                    <div className="p-1.5 border-b border-slate-100 sticky top-0 bg-white">
+                      <input
+                        type="text"
+                        value={itemProductSearch}
+                        onChange={e => setItemProductSearch(e.target.value)}
+                        placeholder="Search product..."
+                        className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    {filteredProducts.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => handleSelectProduct(p)}
+                        className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-b-0 text-xs"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="font-semibold text-slate-900 truncate">{p.name}</p>
+                          <p className="text-[10px] text-slate-500 font-mono">SKU: {p.sku} • Stock: {p.stock_quantity} {p.unit}</p>
+                        </div>
+                        <span className="font-bold text-slate-900 shrink-0">₹{Number(p.selling_price).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {/* Submit Buttons */}
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              {/* Quantity Input */}
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Return Qty</label>
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setItemQuantity(Math.max(1, itemQuantity - 1))}
+                    className="w-8 h-9 bg-white border border-slate-300 rounded-l-lg font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={itemQuantity}
+                    onChange={e => setItemQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full text-center text-xs h-9 bg-white border-y border-slate-300 outline-none font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setItemQuantity(itemQuantity + 1)}
+                    className="w-8 h-9 bg-white border border-slate-300 rounded-r-lg font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Unit Price */}
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Unit Price (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={itemUnitPrice}
+                  onChange={e => setItemUnitPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  placeholder="Price"
+                  className="w-full text-xs h-9 px-2.5 bg-white border border-slate-300 rounded-lg outline-none font-semibold text-slate-900"
+                />
+              </div>
+
+              {/* Add Item Button */}
+              <div className="sm:col-span-1">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-100 transition-colors"
+                  onClick={handleAddReturnItem}
+                  className="w-full h-9 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                  title="Add to Return List"
                 >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting || totalReturnAmount <= 0}
-                  className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-sm flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50 ${
-                    formType === 'exchange'
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : formType === 'refund'
-                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Processing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>
-                        Complete {formType === 'exchange' ? 'Exchange' : formType === 'refund' ? 'Refund' : 'Return'} & Generate Receipt
-                      </span>
-                    </>
-                  )}
+                  <Plus className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+            </div>
+          </div>
+
+          {/* List of Added Return Products */}
+          {returnItems.length === 0 ? (
+            <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center text-slate-400 text-xs">
+              No products added yet. Select a product above and click Add.
+            </div>
+          ) : (
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Product</th>
+                      <th className="py-2.5 px-3 w-28 text-center">Return Qty</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Price</th>
+                      <th className="py-2.5 px-3 w-32 text-right">Total (₹)</th>
+                      <th className="py-2.5 px-3 w-12 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {returnItems.map(it => (
+                      <tr key={it.product_id} className="hover:bg-slate-50/60">
+                        <td className="py-2.5 px-3">
+                          <p className="font-bold text-slate-900 text-xs">{it.product_name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">SKU: {it.product_sku}</p>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="inline-flex items-center border border-slate-200 rounded-md bg-slate-50">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateItemQty(it.product_id, it.quantity - 1)}
+                              className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 font-bold"
+                            >
+                              -
+                            </button>
+                            <span className="px-2 font-bold text-slate-900 text-xs">{it.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateItemQty(it.product_id, it.quantity + 1)}
+                              className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 font-bold"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-slate-700">
+                          ₹{Number(it.unit_price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-black text-slate-900">
+                          ₹{Number(it.line_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReturnItem(it.product_id)}
+                            className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[11px] tracking-wider text-slate-500">
+                        Total Return Value:
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-sm font-black text-slate-900">
+                        ₹{totalReturnAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* STEP 3B: IF PCS-TO-PCS EXCHANGE -> REPLACEMENT PRODUCT BOX */}
+        {transactionType === 'exchange' && (
+          <div className="p-4 sm:p-5 rounded-xl border-2 border-indigo-200 bg-indigo-50/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                <ArrowLeftRight className="w-4 h-4 text-indigo-600" />
+                Replacement Product (Customer Takes)
+              </label>
+              {selectedExchangeProduct && (
+                <span className="text-[11px] font-semibold text-indigo-700">
+                  Stock in Shop: <span className="font-bold">{selectedExchangeProduct.stock_quantity} {selectedExchangeProduct.unit}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              {/* Product Search */}
+              <div className="sm:col-span-6 relative">
+                <label className="block text-[11px] font-semibold text-indigo-900 mb-1">Select Replacement Item</label>
+                <div
+                  className="w-full flex items-center justify-between px-3 py-2 bg-white border border-indigo-300 rounded-lg cursor-pointer text-xs"
+                  onClick={() => setIsExchangeDropdownOpen(!isExchangeDropdownOpen)}
+                >
+                  <span className={exchangeProductId ? 'font-semibold text-slate-900 truncate' : 'text-slate-400'}>
+                    {exchangeProductSearch || 'Search replacement product...'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                </div>
+
+                {isExchangeDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                    <div className="p-1.5 border-b border-slate-100 sticky top-0 bg-white">
+                      <input
+                        type="text"
+                        value={exchangeProductSearch}
+                        onChange={e => setExchangeProductSearch(e.target.value)}
+                        placeholder="Search replacement..."
+                        className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    {filteredExchangeProducts.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => handleSelectExchangeProduct(p)}
+                        className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between border-b border-slate-50 last:border-b-0 text-xs"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="font-semibold text-slate-900 truncate">{p.name}</p>
+                          <p className="text-[10px] text-slate-500 font-mono">SKU: {p.sku} • Stock: {p.stock_quantity} {p.unit}</p>
+                        </div>
+                        <span className="font-bold text-slate-900 shrink-0">₹{Number(p.selling_price).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quantity */}
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-semibold text-indigo-900 mb-1">Replacement Qty</label>
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setExchangeQuantity(Math.max(1, exchangeQuantity - 1))}
+                    className="w-8 h-9 bg-white border border-indigo-300 rounded-l-lg font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={exchangeQuantity}
+                    onChange={e => setExchangeQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full text-center text-xs h-9 bg-white border-y border-indigo-300 outline-none font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setExchangeQuantity(exchangeQuantity + 1)}
+                    className="w-8 h-9 bg-white border border-indigo-300 rounded-r-lg font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-semibold text-indigo-900 mb-1">Price (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={exchangeUnitPrice}
+                  onChange={e => setExchangeUnitPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  placeholder="Price"
+                  className="w-full text-xs h-9 px-2.5 bg-white border border-indigo-300 rounded-lg outline-none font-semibold text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* AUTOMATIC PRICE DIFFERENCE BANNER */}
+            <div className="pt-2">
+              <div
+                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${
+                  exchangeDifference > 0
+                    ? 'bg-amber-50 border-amber-300 text-amber-950'
+                    : exchangeDifference < 0
+                    ? 'bg-blue-50 border-blue-300 text-blue-950'
+                    : 'bg-slate-100 border-slate-300 text-slate-900'
+                }`}
+              >
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider opacity-75 block">
+                    Financial Summary (Auto Calculated)
+                  </span>
+                  <div className="flex items-center gap-2 text-xs font-medium mt-0.5">
+                    <span>Returned: ₹{totalReturnAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span>→</span>
+                    <span>Replacement: ₹{totalExchangeAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                <div className="sm:text-right">
+                  {exchangeDifference > 0 ? (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-800 block">
+                        Customer Pays Extra:
+                      </span>
+                      <span className="text-base sm:text-lg font-black text-amber-900">
+                        +₹{exchangeDifference.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ) : exchangeDifference < 0 ? (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-blue-800 block">
+                        Store Refunds Customer:
+                      </span>
+                      <span className="text-base sm:text-lg font-black text-blue-900">
+                        -₹{Math.abs(exchangeDifference).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-600 block">
+                        Even Exchange:
+                      </span>
+                      <span className="text-base sm:text-lg font-black text-slate-900">
+                        ₹0.00 (No Difference)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: ACTION TOOLBAR (LARGE SAVE & PRINT BUTTON) */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleResetForm}
+            className="px-4 py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition-colors cursor-pointer text-center"
+          >
+            Clear / Reset
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveAndPrint}
+            disabled={isSaving || !selectedPartyId || returnItems.length === 0}
+            className={`flex-1 sm:flex-initial px-6 py-3.5 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-95 ${
+              isSaving || !selectedPartyId || returnItems.length === 0
+                ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                : transactionType === 'exchange'
+                ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+            }`}
+          >
+            {isSaving ? (
+              <>
+                <RotateCw className="w-5 h-5 animate-spin" />
+                <span>Saving & Restocking Inventory...</span>
+              </>
+            ) : (
+              <>
+                <Printer className="w-5 h-5" />
+                <span>
+                  {transactionType === 'exchange' ? 'Save & Print Exchange Receipt' : 'Save & Print Refund Receipt'}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* RECENT TRANSACTIONS (FOR QUICK REPRINTING) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-slate-500" />
+              Recent Returns & Exchanges
+            </h2>
+            <p className="text-xs text-slate-500">Reprint any receipt with one click</p>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={historySearch}
+              onChange={e => setHistorySearch(e.target.value)}
+              placeholder="Search receipt # or customer..."
+              className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-indigo-500"
+            />
           </div>
         </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* PRINTABLE A4 RECEIPT MODAL */}
-      {/* ========================================================================= */}
+        {filteredRecentReturns.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-400">
+            No recent return or exchange transactions recorded yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-xs text-left min-w-[600px]">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3 w-32">Receipt #</th>
+                  <th className="py-2.5 px-3 w-28">Date</th>
+                  <th className="py-2.5 px-3">Customer</th>
+                  <th className="py-2.5 px-3 w-28 text-center">Type</th>
+                  <th className="py-2.5 px-3 w-36 text-right">Amount / Diff</th>
+                  <th className="py-2.5 px-3 w-28 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredRecentReturns.map(ret => (
+                  <tr key={ret.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">
+                      {ret.id}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">
+                      {ret.return_date}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <p className="font-semibold text-slate-900">{ret.party_name || 'Counter Customer'}</p>
+                      <p className="text-[11px] text-slate-400">{ret.party_area}</p>
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          ret.type === 'exchange'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {ret.type === 'exchange' ? 'Exchange' : 'Refund'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      {ret.type === 'exchange' ? (
+                        ret.difference_action === 'customer_pays' ? (
+                          <span className="font-bold text-amber-700">
+                            +₹{Number(ret.difference_amount).toLocaleString('en-IN')}
+                          </span>
+                        ) : ret.difference_action === 'store_refunds' ? (
+                          <span className="font-bold text-blue-700">
+                            -₹{Math.abs(Number(ret.difference_amount)).toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-slate-600">Even (₹0)</span>
+                        )
+                      ) : (
+                        <span className="font-bold text-emerald-700">
+                          ₹{Number(ret.total_return_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setActiveReceipt(ret)}
+                        className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 mx-auto transition-colors cursor-pointer active:scale-95"
+                        title="Print Receipt"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* PRINTABLE RECEIPT VIEWER MODAL */}
       {activeReceipt && (
         <PrintableReturnReceipt
           returnRecord={activeReceipt}
@@ -1353,24 +1010,6 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
           onShowToast={onShowToast}
         />
       )}
-
-      {/* Admin PIN Protection Modal for Sensitive Deletions */}
-      <AdminPinModal
-        isOpen={pinModalOpen}
-        actionTitle={pinActionTitle}
-        actionDescription={pinActionDesc}
-        onClose={() => {
-          setPinModalOpen(false);
-          setPendingAction(null);
-        }}
-        onSuccess={() => {
-          if (pendingAction) pendingAction();
-          setPinModalOpen(false);
-          setPendingAction(null);
-        }}
-      />
     </div>
   );
 };
-
-export default ReturnsView;

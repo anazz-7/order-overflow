@@ -186,7 +186,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL CHECK(type IN ('return', 'refund', 'exchange')),
     party_id TEXT NOT NULL REFERENCES parties(id),
-    order_id TEXT NOT NULL REFERENCES sales_orders(id),
+    order_id TEXT REFERENCES sales_orders(id),
     return_date TEXT NOT NULL,
     total_return_amount REAL NOT NULL,
     reason TEXT,
@@ -244,8 +244,55 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_returns_date ON returns(return_date);
   CREATE INDEX IF NOT EXISTS idx_returns_type ON returns(type);
   CREATE INDEX IF NOT EXISTS idx_return_items_return ON return_items(return_id);
-  CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id);
 `);
+
+// Auto-migration: Make order_id nullable in existing returns table if needed
+try {
+  const returnsInfo = db.prepare("PRAGMA table_info(returns)").all();
+  const orderCol = returnsInfo.find(c => c.name === 'order_id');
+  if (orderCol && orderCol.notnull === 1) {
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS returns_mig (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('return', 'refund', 'exchange')),
+        party_id TEXT NOT NULL REFERENCES parties(id),
+        order_id TEXT REFERENCES sales_orders(id),
+        return_date TEXT NOT NULL,
+        total_return_amount REAL NOT NULL,
+        reason TEXT,
+        refund_method TEXT,
+        refund_reference TEXT,
+        refund_amount REAL DEFAULT 0.0,
+        exchange_product_id TEXT REFERENCES products(id),
+        exchange_product_name TEXT,
+        exchange_product_sku TEXT,
+        exchange_product_unit TEXT,
+        exchange_unit_price REAL DEFAULT 0.0,
+        exchange_quantity INTEGER DEFAULT 0,
+        total_exchange_amount REAL DEFAULT 0.0,
+        difference_amount REAL DEFAULT 0.0,
+        difference_action TEXT,
+        difference_payment_method TEXT,
+        status TEXT DEFAULT 'completed' CHECK(status IN ('completed', 'cancelled')),
+        created_by TEXT DEFAULT 'Admin',
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+      );
+      INSERT INTO returns_mig SELECT * FROM returns;
+      DROP TABLE returns;
+      ALTER TABLE returns_mig RENAME TO returns;
+      CREATE INDEX IF NOT EXISTS idx_returns_party ON returns(party_id);
+      CREATE INDEX IF NOT EXISTS idx_returns_order ON returns(order_id);
+      CREATE INDEX IF NOT EXISTS idx_returns_date ON returns(return_date);
+      CREATE INDEX IF NOT EXISTS idx_returns_type ON returns(type);
+    `);
+    db.pragma('foreign_keys = ON');
+  }
+} catch (migErr) {
+  console.warn('Notice on returns order_id migration:', migErr.message);
+}
 
 // Helper to record audit log
 function recordAuditLog(entityType, entityId, action, details, performedBy = 'Admin') {

@@ -122,7 +122,7 @@ router.get('/', (req, res) => {
              o.order_date
       FROM returns r
       JOIN parties p ON r.party_id = p.id
-      JOIN sales_orders o ON r.order_id = o.id
+      LEFT JOIN sales_orders o ON r.order_id = o.id
       WHERE 1=1
     `;
     const params = [];
@@ -198,7 +198,7 @@ router.get('/:id', (req, res) => {
              o.order_date, o.final_amount as order_final_amount
       FROM returns r
       JOIN parties p ON r.party_id = p.id
-      JOIN sales_orders o ON r.order_id = o.id
+      LEFT JOIN sales_orders o ON r.order_id = o.id
       WHERE r.id = ?
     `).get(id);
 
@@ -248,94 +248,124 @@ router.post('/', (req, res) => {
       return res.status(400).json({ success: false, error: 'Customer is required.' });
     }
 
-    if (!order_id) {
-      return res.status(400).json({ success: false, error: 'Original invoice number is required.' });
-    }
-
     if (!Array.isArray(returned_items) || returned_items.length === 0) {
       return res.status(400).json({ success: false, error: 'Please select at least one item to return.' });
     }
 
-    // Verify order exists and belongs to party
-    const order = db.prepare(`SELECT * FROM sales_orders WHERE id = ?`).get(order_id);
-    if (!order) {
-      return res.status(404).json({ success: false, error: `Invoice #${order_id} not found.` });
+    let order = null;
+    let origMap = {};
+    let prevMap = {};
+
+    if (order_id) {
+      // Verify order exists and belongs to party if order_id is provided
+      order = db.prepare(`SELECT * FROM sales_orders WHERE id = ?`).get(order_id);
+      if (!order) {
+        return res.status(404).json({ success: false, error: `Invoice #${order_id} not found.` });
+      }
+
+      if (order.party_id !== party_id) {
+        return res.status(400).json({ success: false, error: `Invoice #${order_id} does not belong to this customer.` });
+      }
+
+      if (order.status === 'cancelled') {
+        return res.status(400).json({ success: false, error: `Invoice #${order_id} is cancelled and cannot be returned.` });
+      }
+
+      // Load original items for this order
+      const originalItems = db.prepare(`SELECT * FROM order_items WHERE order_id = ?`).all(order_id);
+      originalItems.forEach(it => {
+        origMap[it.product_id] = it;
+      });
+
+      // Check previously returned quantities to prevent duplicate / excessive returns
+      const previousReturns = db.prepare(`
+        SELECT ri.product_id, SUM(ri.return_quantity) as total_returned
+        FROM return_items ri
+        JOIN returns r ON ri.return_id = r.id
+        WHERE r.order_id = ? AND r.status != 'cancelled'
+        GROUP BY ri.product_id
+      `).all(order_id);
+
+      previousReturns.forEach(pr => {
+        prevMap[pr.product_id] = Number(pr.total_returned) || 0;
+      });
     }
-
-    if (order.party_id !== party_id) {
-      return res.status(400).json({ success: false, error: `Invoice #${order_id} does not belong to this customer.` });
-    }
-
-    if (order.status === 'cancelled') {
-      return res.status(400).json({ success: false, error: `Invoice #${order_id} is cancelled and cannot be returned.` });
-    }
-
-    // Load original items for this order
-    const originalItems = db.prepare(`SELECT * FROM order_items WHERE order_id = ?`).all(order_id);
-    const origMap = {};
-    originalItems.forEach(it => {
-      origMap[it.product_id] = it;
-    });
-
-    // Check previously returned quantities to prevent duplicate / excessive returns
-    const previousReturns = db.prepare(`
-      SELECT ri.product_id, SUM(ri.return_quantity) as total_returned
-      FROM return_items ri
-      JOIN returns r ON ri.return_id = r.id
-      WHERE r.order_id = ? AND r.status != 'cancelled'
-      GROUP BY ri.product_id
-    `).all(order_id);
-
-    const prevMap = {};
-    previousReturns.forEach(pr => {
-      prevMap[pr.product_id] = Number(pr.total_returned) || 0;
-    });
 
     // Validate return items and calculate totals
     const preparedReturnItems = [];
     let totalReturnAmount = 0;
 
     for (const item of returned_items) {
-      const orig = origMap[item.product_id];
-      if (!orig) {
-        return res.status(400).json({
-          success: false,
-          error: `Product ID ${item.product_id} was not purchased in invoice #${order_id}.`
-        });
-      }
-
       const returnQty = parseInt(item.return_quantity, 10);
       if (isNaN(returnQty) || returnQty <= 0) {
         return res.status(400).json({
           success: false,
-          error: `Invalid return quantity for product "${orig.product_name}". Must be greater than 0.`
+          error: `Invalid return quantity for product ID ${item.product_id}. Must be greater than 0.`
         });
       }
 
-      const alreadyReturned = prevMap[item.product_id] || 0;
-      const maxAllowed = orig.quantity - alreadyReturned;
+      if (order_id) {
+        const orig = origMap[item.product_id];
+        if (!orig) {
+          return res.status(400).json({
+            success: false,
+            error: `Product ID ${item.product_id} was not purchased in invoice #${order_id}.`
+          });
+        }
 
-      if (returnQty > maxAllowed) {
-        return res.status(400).json({
-          success: false,
-          error: `Cannot return ${returnQty} units of "${orig.product_name}". Only ${maxAllowed} units are returnable (Purchased: ${orig.quantity}, Already returned: ${alreadyReturned}).`
+        const alreadyReturned = prevMap[item.product_id] || 0;
+        const maxAllowed = orig.quantity - alreadyReturned;
+
+        if (returnQty > maxAllowed) {
+          return res.status(400).json({
+            success: false,
+            error: `Cannot return ${returnQty} units of "${orig.product_name}". Only ${maxAllowed} units are returnable (Purchased: ${orig.quantity}, Already returned: ${alreadyReturned}).`
+          });
+        }
+
+        const unitPrice = item.unit_price !== undefined && item.unit_price !== null && !isNaN(Number(item.unit_price))
+          ? Number(item.unit_price)
+          : (Number(orig.unit_price) || 0);
+        const itemReturnAmount = Math.round(returnQty * unitPrice * 100) / 100;
+        totalReturnAmount += itemReturnAmount;
+
+        preparedReturnItems.push({
+          product_id: orig.product_id,
+          product_sku: orig.product_sku,
+          product_name: orig.product_name,
+          unit: orig.unit,
+          unit_price: unitPrice,
+          purchased_quantity: orig.quantity,
+          return_quantity: returnQty,
+          return_amount: itemReturnAmount
+        });
+      } else {
+        // Direct counter return without invoice requirement
+        const prod = db.prepare(`SELECT * FROM products WHERE id = ?`).get(item.product_id);
+        if (!prod) {
+          return res.status(404).json({
+            success: false,
+            error: `Product ID ${item.product_id} not found in catalog.`
+          });
+        }
+
+        const unitPrice = item.unit_price !== undefined && item.unit_price !== null && !isNaN(Number(item.unit_price))
+          ? Number(item.unit_price)
+          : (Number(prod.selling_price) || 0);
+        const itemReturnAmount = Math.round(returnQty * unitPrice * 100) / 100;
+        totalReturnAmount += itemReturnAmount;
+
+        preparedReturnItems.push({
+          product_id: prod.id,
+          product_sku: prod.sku,
+          product_name: prod.name,
+          unit: prod.unit,
+          unit_price: unitPrice,
+          purchased_quantity: returnQty,
+          return_quantity: returnQty,
+          return_amount: itemReturnAmount
         });
       }
-
-      const unitPrice = Number(orig.unit_price) || 0;
-      const itemReturnAmount = Math.round(returnQty * unitPrice * 100) / 100;
-      totalReturnAmount += itemReturnAmount;
-
-      preparedReturnItems.push({
-        product_id: orig.product_id,
-        product_sku: orig.product_sku,
-        product_name: orig.product_name,
-        unit: orig.unit,
-        unit_price: unitPrice,
-        purchased_quantity: orig.quantity,
-        return_quantity: returnQty,
-        return_amount: itemReturnAmount
-      });
     }
 
     // Exchange specific validations and calculations
@@ -406,11 +436,11 @@ router.post('/', (req, res) => {
         returnId,
         type,
         party_id,
-        order_id,
+        order_id || null,
         return_date,
         totalReturnAmount,
         reason || null,
-        type === 'refund' ? refund_method : null,
+        type === 'refund' ? (refund_method || 'Cash') : null,
         type === 'refund' ? (refund_reference || null) : null,
         type === 'refund' ? totalReturnAmount : 0.0,
         exchangeProduct ? exchangeProduct.id : null,
@@ -422,7 +452,7 @@ router.post('/', (req, res) => {
         totalExchangeAmount,
         differenceAmount,
         differenceAction,
-        type === 'exchange' ? difference_payment_method : null,
+        type === 'exchange' ? (difference_payment_method || 'Cash') : null,
         user_name || 'Admin',
         notes || null
       );
@@ -471,7 +501,7 @@ router.post('/', (req, res) => {
         returnId,
         type.toUpperCase(),
         {
-          order_id,
+          order_id: order_id || null,
           party_id,
           returned_items: preparedReturnItems,
           total_return_amount: totalReturnAmount,
@@ -492,7 +522,7 @@ router.post('/', (req, res) => {
              o.order_date
       FROM returns r
       JOIN parties p ON r.party_id = p.id
-      JOIN sales_orders o ON r.order_id = o.id
+      LEFT JOIN sales_orders o ON r.order_id = o.id
       WHERE r.id = ?
     `).get(returnId);
 
