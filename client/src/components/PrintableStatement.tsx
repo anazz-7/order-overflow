@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState } from 'react';
 import { Printer, X, Download } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { PartyStatement } from '../types';
@@ -19,7 +19,7 @@ export const PrintableStatement: React.FC<PrintableStatementProps> = ({
   onClose
 }) => {
   const { party, prior_balance, total_debits, total_credits, closing_balance, entries } = statementData;
-  const printedDate = useMemo(() => new Date().toLocaleDateString(), []);
+  const [printedDate] = useState(() => new Date().toLocaleDateString());
 
   const handlePrint = () => {
     window.print();

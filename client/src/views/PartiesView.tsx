@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   Plus,
@@ -7,11 +7,13 @@ import {
   MapPin,
   CreditCard,
   ShoppingCart,
-  Printer
+  Printer,
+  Trash2
 } from 'lucide-react';
 import { api } from '../api';
 import { Party, PartyStatement, UserRole } from '../types';
 import { PrintableStatement } from '../components/PrintableStatement';
+import { AdminPinModal } from '../components/AdminPinModal';
 
 interface PartiesViewProps {
   userRole: UserRole;
@@ -50,6 +52,13 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
   const [partyPayments, setPartyPayments] = useState<any[]>([]);
   const [printStatementData, setPrintStatementData] = useState<PartyStatement | null>(null);
 
+  // Admin PIN & Sensitive Actions State
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pinActionTitle, setPinActionTitle] = useState('');
+  const [pinActionDesc, setPinActionDesc] = useState('');
+  const [pinWarningText, setPinWarningText] = useState('');
+
   // Add Party Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -66,7 +75,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch parties
-  const fetchParties = async () => {
+  const fetchParties = useCallback(async () => {
     setLoading(true);
     try {
       const [partiesRes, areasRes] = await Promise.all([
@@ -84,14 +93,14 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, areaFilter, statusFilter, onShowToast]);
 
   useEffect(() => {
     fetchParties();
-  }, [areaFilter, statusFilter]);
+  }, [fetchParties]);
 
   // Open party profile drawer & fetch statement/orders/payments
-  const handleOpenPartyProfile = async (partyId: string) => {
+  const handleOpenPartyProfile = useCallback(async (partyId: string) => {
     try {
       const [partyRes, stmtRes, ordersRes, paysRes] = await Promise.all([
         api.getParty(partyId),
@@ -110,7 +119,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
     } catch (err: any) {
       onShowToast('error', 'Failed to load party profile', err.message);
     }
-  };
+  }, [statementStartDate, statementEndDate, onShowToast]);
 
   // Handle selected party from search or parent
   useEffect(() => {
@@ -118,7 +127,7 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
       handleOpenPartyProfile(selectedPartyId);
       if (onClearSelectedParty) onClearSelectedParty();
     }
-  }, [selectedPartyId]);
+  }, [selectedPartyId, handleOpenPartyProfile, onClearSelectedParty]);
 
   // Reload statement when date filters change
   const handleFilterStatement = async () => {
@@ -165,6 +174,35 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const requestAdminPin = (title: string, desc: string, warning: string, action: () => void) => {
+    setPinActionTitle(title);
+    setPinActionDesc(desc);
+    setPinWarningText(warning);
+    setPendingAction(() => action);
+    setPinModalOpen(true);
+  };
+
+  // Delete Party with Admin PIN
+  const handleDeleteParty = (party: any) => {
+    requestAdminPin(
+      `Delete Party: ${party.name}`,
+      `Permanently delete party record ${party.id} and cascade financial records.`,
+      `Cascading Financial Deletion Warning: Deleting this party will permanently delete the customer record, all associated sales orders, payments, order allocations, notes, and party ledger accounting entries. This action cannot be undone.`,
+      async () => {
+        try {
+          await api.deleteParty(party.id, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          onShowToast('success', 'Party Deleted', `Party ${party.name} (${party.id}) and all associated records were permanently removed.`);
+          if (activeParty?.id === party.id) {
+            setActiveParty(null);
+          }
+          fetchParties();
+        } catch (err: any) {
+          onShowToast('error', 'Delete Failed', err.message);
+        }
+      }
+    );
   };
 
   return (
@@ -258,15 +296,28 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
                       {party.name}
                     </h3>
                   </div>
-                  {party.is_over_credit_limit ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase">
-                      Over Limit
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
-                      {party.payment_terms_days}d terms
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {party.is_over_credit_limit ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                        Over Limit
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                        {party.payment_terms_days}d terms
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteParty(party);
+                      }}
+                      className="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                      title="Delete Party (Admin PIN Required)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-3 space-y-1 text-xs text-slate-600">
@@ -508,12 +559,20 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
                     setActiveParty(null);
                     onQuickAction('order', id);
                   }}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
                   New Order
                 </button>
-                <button onClick={() => setActiveParty(null)} className="text-slate-400 hover:text-white p-1 ml-2">
+                <button
+                  onClick={() => handleDeleteParty(activeParty)}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                  title="Delete Party (Admin PIN Required)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Party
+                </button>
+                <button onClick={() => setActiveParty(null)} className="text-slate-400 hover:text-white p-1 ml-2 cursor-pointer">
                   ✕
                 </button>
               </div>
@@ -764,6 +823,26 @@ export const PartiesView: React.FC<PartiesViewProps> = ({
           onClose={() => setPrintStatementData(null)}
         />
       )}
+
+      {/* Admin PIN Verification Modal for Sensitive Actions */}
+      <AdminPinModal
+        isOpen={pinModalOpen}
+        onClose={() => {
+          setPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={() => {
+          if (pendingAction) {
+            pendingAction();
+          }
+        }}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
+        warningText={pinWarningText}
+        expectedPin={businessSettings?.admin_pin || '1977'}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+

@@ -516,4 +516,53 @@ router.post('/:id/reverse', (req, res) => {
   }
 });
 
+// DELETE payment permanently with strict financial data integrity rollback
+router.delete('/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_name = 'Admin' } = req.body || {};
+
+    const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(id);
+    if (!payment) {
+      return res.status(404).json({ success: false, error: 'Payment not found.' });
+    }
+
+    const deleteTx = db.transaction(() => {
+      // 1. Rollback allocations: subtract allocated amount from sales orders & update status
+      const allocations = db.prepare('SELECT * FROM payment_allocations WHERE payment_id = ?').all(id);
+      for (const al of allocations) {
+        const order = db.prepare('SELECT * FROM sales_orders WHERE id = ?').get(al.order_id);
+        if (order) {
+          const newAllocated = Math.max(0, order.allocated_amount - al.allocated_amount);
+          const newStatus = newAllocated <= 0.01 ? 'unpaid' : 'partially_paid';
+          db.prepare(`
+            UPDATE sales_orders
+            SET allocated_amount = ?, payment_status = ?, updated_at = datetime('now', 'localtime')
+            WHERE id = ?
+          `).run(newAllocated, newStatus, al.order_id);
+        }
+      }
+      db.prepare('DELETE FROM payment_allocations WHERE payment_id = ?').run(id);
+
+      // 2. Remove ledger entries for this payment (both credit and any reversal debits)
+      db.prepare('DELETE FROM party_ledger WHERE reference_id = ?').run(id);
+
+      // 3. Delete payment record
+      db.prepare('DELETE FROM payments WHERE id = ?').run(id);
+
+      // 4. Audit log
+      recordAuditLog('PAYMENT', id, 'DELETE', `Deleted payment ${id} for party ${payment.party_id} (Amount: ₹${payment.amount})`, user_name);
+    });
+
+    deleteTx();
+
+    const newBal = getPartyBalance(payment.party_id);
+    res.json({ success: true, message: `Payment ${id} deleted successfully.`, party_new_balance: newBal });
+  } catch (error) {
+    console.error('Error deleting payment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
+

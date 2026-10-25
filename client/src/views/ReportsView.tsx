@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  BarChart3,
   Calendar,
-  Download,
   Users,
-  ShoppingCart,
   CreditCard,
   Package,
   Clock,
-  Filter,
   FileSpreadsheet
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
@@ -22,9 +18,9 @@ interface ReportsViewProps {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
-  userRole,
+  userRole: _userRole,
   onShowToast,
-  businessSettings
+  businessSettings: _businessSettings
 }) => {
   const [selectedReport, setSelectedReport] = useState<string>('orders-by-date');
   const [loading, setLoading] = useState(false);
@@ -33,7 +29,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [endDate, setEndDate] = useState('');
   const [dormantDays, setDormantDays] = useState('30');
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
       let res: any;
@@ -56,11 +52,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedReport, startDate, endDate, dormantDays, onShowToast]);
 
   useEffect(() => {
     fetchReport();
-  }, [selectedReport, dormantDays]);
+  }, [fetchReport]);
 
   // Export report to Excel
   const handleExportExcel = () => {

@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Settings,
   Shield,
   Building,
   Save,
@@ -8,20 +7,21 @@ import {
   Clock,
   History,
   Search,
-  Filter,
-  UserCheck,
   AlertTriangle,
   Download,
   Smartphone,
   MessageSquare,
   Send,
-  Key,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { api } from '../api';
 import { AuditLog, UserRole } from '../types';
 import { usePwa } from '../pwa';
+import { AdminPinModal } from '../components/AdminPinModal';
 
 interface SettingsViewProps {
   userRole: UserRole;
@@ -38,9 +38,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   businessSettings,
   onReloadSettings
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'sms' | 'audit'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'sms' | 'roles' | 'audit'>('profile');
   const [isSaving, setIsSaving] = useState(false);
   const { isInstallable, isInstalled, installApp } = usePwa();
+
+  // Admin PIN Management State
+  const [adminPin, setAdminPin] = useState(businessSettings?.admin_pin || '1977');
+  const [showAdminPin, setShowAdminPin] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [isChangingPin, setIsChangingPin] = useState(false);
+
+  // Admin PIN Verification Modal State
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pinActionTitle, setPinActionTitle] = useState('');
+  const [pinActionDesc, setPinActionDesc] = useState('');
+  const [pinWarningText, setPinWarningText] = useState('');
 
   // SMS Configuration State
   const [smsSettings, setSmsSettings] = useState({
@@ -95,7 +109,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [businessSettings]);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setAuditLoading(true);
     try {
       const res = await api.getAuditLogs({
@@ -108,13 +122,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } finally {
       setAuditLoading(false);
     }
-  };
+  }, [auditSearch, auditEntityFilter, onShowToast]);
 
   useEffect(() => {
     if (activeTab === 'audit') {
       fetchAuditLogs();
     }
-  }, [activeTab, auditEntityFilter]);
+  }, [activeTab, fetchAuditLogs]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +208,90 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const requestAdminPin = (title: string, desc: string, warning: string, action: () => void) => {
+    setPinActionTitle(title);
+    setPinActionDesc(desc);
+    setPinWarningText(warning);
+    setPendingAction(() => action);
+    setPinModalOpen(true);
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(newPin)) {
+      onShowToast('error', 'Invalid PIN', 'Admin PIN must be exactly 4 digits.');
+      return;
+    }
+    if (newPin !== confirmNewPin) {
+      onShowToast('error', 'PIN Mismatch', 'New PIN and confirmation PIN do not match.');
+      return;
+    }
+
+    requestAdminPin(
+      'Verify Current Admin PIN',
+      'Authorize updating the master Admin PIN for OrderFlow Pro.',
+      'Updating the Admin PIN will immediately require the new PIN for all subsequent deletions, reversals, and sensitive actions in More Actions.',
+      async () => {
+        try {
+          await api.updateSettings({ ...formData, admin_pin: newPin }, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          setAdminPin(newPin);
+          setNewPin('');
+          setConfirmNewPin('');
+          setIsChangingPin(false);
+          onShowToast('success', 'Admin PIN Updated', `Admin PIN has been changed to ${newPin}.`);
+          if (onReloadSettings) onReloadSettings();
+        } catch (err: any) {
+          onShowToast('error', 'Update Failed', err.message);
+        }
+      }
+    );
+  };
+
+  const handleClearAuditLogs = () => {
+    requestAdminPin(
+      'Purge Audit Trail History',
+      'Permanently delete historical system compliance audit records.',
+      'Warning: This action will permanently remove all historical audit entries from the database. This cannot be undone.',
+      async () => {
+        try {
+          await api.purgeAuditLogs(userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          setAuditLogs([]);
+          onShowToast('success', 'Audit Trail Cleared', 'Historical audit trail entries have been purged.');
+        } catch (err: any) {
+          onShowToast('error', 'Action Failed', err.message);
+        }
+      }
+    );
+  };
+
+  const handleClearSmsLogs = () => {
+    requestAdminPin(
+      'Clear SMS Delivery Logs',
+      'Permanently delete transactional SMS gateway delivery records.',
+      'Warning: This action clears the local delivery and idempotency audit log history.',
+      async () => {
+        try {
+          await api.clearSmsLogs(userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          setSmsLogs([]);
+          onShowToast('success', 'SMS Logs Cleared', 'SMS gateway delivery records have been cleared.');
+        } catch (err: any) {
+          onShowToast('error', 'Action Failed', err.message);
+        }
+      }
+    );
+  };
+
+  const handleTestAdminPin = () => {
+    requestAdminPin(
+      'Test Admin PIN Verification',
+      'Experience masked PIN entry, 3-attempt limit, and 30-second lockout security.',
+      'Enter the configured Admin PIN (default 1977) to verify authorization, or test lockout behavior with incorrect digits.',
+      () => {
+        onShowToast('success', 'Admin Authorization Verified', 'Admin PIN was accepted successfully.');
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -239,6 +337,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <Building className="w-4 h-4" />
           Business Profile & Receipts
+        </button>
+        <button
+          onClick={() => setActiveTab('security')}
+          className={`pb-2.5 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'security'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <KeyRound className="w-4 h-4" />
+          Admin PIN & Security
         </button>
         <button
           onClick={() => setActiveTab('sms')}
@@ -419,6 +528,214 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
         </div>
       </>)}
+
+      {/* Tab: Admin PIN & Security */}
+      {activeTab === 'security' && (
+        <div className="space-y-6 max-w-3xl">
+          {/* Admin PIN Master Security Card */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-2xs space-y-5 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    Master Admin PIN Security
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      ACTIVE (1977)
+                    </span>
+                  </h3>
+                  <p className="text-slate-500 mt-0.5">
+                    OrderFlow Pro requires 4-digit Admin PIN verification for all destructive operations and sensitive actions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Current PIN Display with Masking & Eye Toggle */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                  Current Master Admin PIN
+                </span>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="font-mono text-xl font-extrabold text-slate-900 tracking-widest">
+                    {showAdminPin ? adminPin : '● ● ● ●'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPin(!showAdminPin)}
+                    className="p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                    title={showAdminPin ? 'Hide PIN' : 'Reveal PIN'}
+                  >
+                    {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Default PIN is <strong>1977</strong>. All operations are rate-limited to 3 failed attempts before a 30s lockout.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestAdminPin}
+                  className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-lg font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Test Verification
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsChangingPin(!isChangingPin)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+                >
+                  {isChangingPin ? 'Cancel' : 'Change PIN'}
+                </button>
+              </div>
+            </div>
+
+            {/* Change PIN Form */}
+            {isChangingPin && (
+              <form onSubmit={handleChangePin} className="p-4 bg-indigo-50/40 border border-indigo-200 rounded-xl space-y-4 animate-in fade-in">
+                <h4 className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Set New 4-Digit Admin PIN
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-slate-700">New 4-Digit PIN *</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      required
+                      placeholder="e.g. 1977"
+                      value={newPin}
+                      onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-center font-mono text-base font-bold outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-slate-700">Confirm New PIN *</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      required
+                      placeholder="e.g. 1977"
+                      value={confirmNewPin}
+                      onChange={e => setConfirmNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-center font-mono text-base font-bold outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangingPin(false);
+                      setNewPin('');
+                      setConfirmNewPin('');
+                    }}
+                    className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-700 font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-xs cursor-pointer"
+                  >
+                    Update Admin PIN
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Scope of PIN Protection */}
+            <div className="space-y-2 pt-2">
+              <h4 className="font-bold text-slate-800 text-xs">PIN-Enforced Protected Actions</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600">
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Sales Orders & Invoices</span>
+                    <p className="text-slate-500">Permanent deletion with stock and credit rollback</p>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Payments & Receipts</span>
+                    <p className="text-slate-500">Permanent deletion and posting reversals</p>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Wholesale Parties</span>
+                    <p className="text-slate-500">Deletion with cascading orders & ledger cleanup</p>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Master Product Catalog</span>
+                    <p className="text-slate-500">Catalog deletions with historical snapshot safety</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* More Actions / Sensitive Operations Card */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-2xs space-y-4 text-xs">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                More Actions (Sensitive Operations)
+              </h3>
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                Maintenance utilities and data purges. Admin PIN authorization is required before execution.
+              </p>
+            </div>
+
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="p-4 flex items-center justify-between gap-4 bg-white hover:bg-slate-50/60 transition-colors">
+                <div>
+                  <h4 className="font-bold text-slate-900">Purge Audit Trail Log</h4>
+                  <p className="text-slate-500 text-[11px]">
+                    Clears all historical change records and user access logs from system memory.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearAuditLogs}
+                  className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold shrink-0 cursor-pointer active:scale-95 transition-all"
+                >
+                  Purge Audit Logs
+                </button>
+              </div>
+
+              <div className="p-4 flex items-center justify-between gap-4 bg-white hover:bg-slate-50/60 transition-colors">
+                <div>
+                  <h4 className="font-bold text-slate-900">Clear SMS Gateway Logs</h4>
+                  <p className="text-slate-500 text-[11px]">
+                    Removes local transactional SMS delivery and idempotency audit tracking.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSmsLogs}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-semibold shrink-0 cursor-pointer active:scale-95 transition-all"
+                >
+                  Clear SMS Logs
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab: SMS Automation Configuration & Logs */}
       {activeTab === 'sms' && (
@@ -863,6 +1180,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Admin PIN Verification Modal for Sensitive Actions */}
+      <AdminPinModal
+        isOpen={pinModalOpen}
+        onClose={() => {
+          setPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={() => {
+          if (pendingAction) {
+            pendingAction();
+          }
+        }}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
+        warningText={pinWarningText}
+        expectedPin={adminPin || businessSettings?.admin_pin || '1977'}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+

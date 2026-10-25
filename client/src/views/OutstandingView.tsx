@@ -1,15 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Scale,
   Search,
-  Filter,
   Download,
-  Printer,
-  Calendar,
-  AlertTriangle,
-  Clock,
-  CheckCircle2,
-  Phone,
   CreditCard,
   FileText,
   Plus,
@@ -52,7 +45,7 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
   // Statement Modal
   const [printStatementData, setPrintStatementData] = useState<any | null>(null);
 
-  const fetchOutstanding = async () => {
+  const fetchOutstanding = useCallback(async () => {
     setLoading(true);
     try {
       const [outRes, areasRes] = await Promise.all([
@@ -71,11 +64,11 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, areaFilter, filterStatus, onShowToast]);
 
   useEffect(() => {
     fetchOutstanding();
-  }, [areaFilter, filterStatus]);
+  }, [fetchOutstanding]);
 
   // Handle open statement
   const handleOpenStatement = async (partyId: string) => {

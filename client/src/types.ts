@@ -85,6 +85,7 @@ export interface SalesOrder {
   final_amount: number;
   allocated_amount: number;
   payment_status: 'unpaid' | 'partially_paid' | 'paid';
+  payment_method?: string;
   due_date: string | null;
   notes: string | null;
   created_by: string;

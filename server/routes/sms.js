@@ -78,6 +78,18 @@ router.get('/logs', (req, res) => {
   }
 });
 
+// DELETE clear SMS delivery logs
+router.delete('/logs', (req, res) => {
+  try {
+    const { user_name = 'Admin' } = req.body || {};
+    db.prepare('DELETE FROM sms_logs').run();
+    recordAuditLog('SETTINGS', 'SMS_LOGS', 'PURGE', 'Cleared SMS delivery tracking and audit logs', user_name);
+    res.json({ success: true, message: 'SMS logs cleared successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST test SMS send
 router.post('/test', async (req, res) => {
   try {

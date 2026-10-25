@@ -59,107 +59,12 @@ function seedDatabase() {
       insertProduct.run(p);
     }
 
-    // 3. Insert Wholesale Retail Parties
-    const parties = [
-      {
-        id: 'PRT-001',
-        name: 'Annamalai Provision Stores',
-        contact_person: 'M. Annamalai',
-        phone: '9842100001',
-        whatsapp: '9842100001',
-        address: '14, Cross Cut Road',
-        area: 'Gandhipuram',
-        opening_balance: 15000.00,
-        credit_limit: 75000.00,
-        payment_terms_days: 15,
-        notes: 'Consistent buyer since 2018. Prefers deliveries before 10 AM.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-002',
-        name: 'Rahman Supermarket',
-        contact_person: 'Abdul Rahman',
-        phone: '9842100002',
-        whatsapp: '9842100002',
-        address: '88, Oppanakara Street',
-        area: 'Town Hall',
-        opening_balance: 28500.00,
-        credit_limit: 120000.00,
-        payment_terms_days: 30,
-        notes: 'High volume buyer. Bulk edible oil and sugar orders.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-003',
-        name: 'Star Wholesale Traders',
-        contact_person: 'S. Murugan',
-        phone: '9842100003',
-        whatsapp: '9842100003',
-        address: '55, DB Road',
-        area: 'RS Puram',
-        opening_balance: 0.00,
-        credit_limit: 150000.00,
-        payment_terms_days: 15,
-        notes: 'Reliable weekly UPI settlements.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-004',
-        name: 'Kavitha Groceries & General Store',
-        contact_person: 'K. Shanmugam',
-        phone: '9842100004',
-        whatsapp: '9842100004',
-        address: '22, Avinashi Road',
-        area: 'Peelamedu',
-        opening_balance: 12000.00,
-        credit_limit: 45000.00,
-        payment_terms_days: 7,
-        notes: 'Requires quick follow-up for cheque collection.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-005',
-        name: 'New City Mart',
-        contact_person: 'V. Rajesh',
-        phone: '9842100005',
-        whatsapp: '9842100005',
-        address: '104, Sathy Road',
-        area: 'Saravanampatti',
-        opening_balance: 42000.00,
-        credit_limit: 80000.00,
-        payment_terms_days: 15,
-        notes: 'Expanding to 2nd branch. High toor dal consumption.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-006',
-        name: 'Maruthi Departmental Store',
-        contact_person: 'P. Selvakumar',
-        phone: '9842100006',
-        whatsapp: '9842100006',
-        address: '33, Trichy Road',
-        area: 'Singanallur',
-        opening_balance: 8400.00,
-        credit_limit: 50000.00,
-        payment_terms_days: 15,
-        notes: 'Prompt cash on delivery for small orders, credit for bulk.',
-        status: 'active'
-      },
-      {
-        id: 'PRT-007',
-        name: 'Bismillah Daily Needs',
-        contact_person: 'Mohammed Farooq',
-        phone: '9842100007',
-        whatsapp: '9842100007',
-        address: '19, Market Lane',
-        area: 'Ukkadam',
-        opening_balance: 0.00,
-        credit_limit: 60000.00,
-        payment_terms_days: 21,
-        notes: 'New account onboarded last month.',
-        status: 'active'
-      }
-    ];
+    // 3. Insert Wholesale Retail Parties (Loaded from parties.json)
+    const partiesJsonPath = path.join(__dirname, 'data', 'parties.json');
+    let parties = [];
+    if (fs.existsSync(partiesJsonPath)) {
+      parties = JSON.parse(fs.readFileSync(partiesJsonPath, 'utf-8'));
+    }
 
     const insertParty = db.prepare(`
       INSERT INTO parties (id, name, contact_person, phone, whatsapp, address, area, opening_balance, credit_limit, payment_terms_days, notes, status)
@@ -173,7 +78,7 @@ function seedDatabase() {
 
     for (const p of parties) {
       insertParty.run(p);
-      // If opening balance > 0, post an opening debit entry in party_ledger
+      // If opening balance != 0, post opening debit or credit entry in party_ledger
       if (p.opening_balance > 0) {
         insertLedger.run(
           p.id,
@@ -183,6 +88,16 @@ function seedDatabase() {
           'Initial Opening Balance recorded upon system onboarding',
           p.opening_balance,
           0.00
+        );
+      } else if (p.opening_balance < 0) {
+        insertLedger.run(
+          p.id,
+          '2026-10-01',
+          'OPENING_BALANCE',
+          `OPB-${p.id}`,
+          'Initial Opening Balance credit upon system onboarding',
+          0.00,
+          Math.abs(p.opening_balance)
         );
       }
     }

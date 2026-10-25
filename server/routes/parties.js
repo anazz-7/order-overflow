@@ -358,4 +358,50 @@ router.get('/:id/unpaid-orders', (req, res) => {
   }
 });
 
+// DELETE party permanently with clean cascade of ledger, notes and records
+router.delete('/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_name = 'Admin' } = req.body || {};
+
+    const party = db.prepare('SELECT * FROM parties WHERE id = ?').get(id);
+    if (!party) {
+      return res.status(404).json({ success: false, error: 'Party not found.' });
+    }
+
+    const deleteTx = db.transaction(() => {
+      // 1. Delete payment allocations
+      db.prepare('DELETE FROM payment_allocations WHERE party_id = ? OR order_id IN (SELECT id FROM sales_orders WHERE party_id = ?)').run(id, id);
+
+      // 2. Delete order line items
+      db.prepare('DELETE FROM order_items WHERE order_id IN (SELECT id FROM sales_orders WHERE party_id = ?)').run(id);
+
+      // 3. Delete payments
+      db.prepare('DELETE FROM payments WHERE party_id = ?').run(id);
+
+      // 4. Delete sales orders
+      db.prepare('DELETE FROM sales_orders WHERE party_id = ?').run(id);
+
+      // 5. Delete party ledger entries
+      db.prepare('DELETE FROM party_ledger WHERE party_id = ?').run(id);
+
+      // 6. Delete follow up reminders
+      db.prepare('DELETE FROM follow_up_notes WHERE party_id = ?').run(id);
+
+      // 7. Delete party record
+      db.prepare('DELETE FROM parties WHERE id = ?').run(id);
+
+      // 8. Audit log
+      recordAuditLog('PARTY', id, 'DELETE', `Deleted party ${party.name} (${id}) and all associated transaction records`, user_name);
+    });
+
+    deleteTx();
+    res.json({ success: true, message: `Party "${party.name}" deleted successfully.` });
+  } catch (error) {
+    console.error('Error deleting party:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
+

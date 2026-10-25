@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart,
   Plus,
@@ -15,11 +15,14 @@ import {
   PackagePlus,
   X,
   Package,
-  Tag
+  Tag,
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import { api } from '../api';
 import type { SalesOrder, Party, Product, UserRole } from '../types';
 import { PrintableOrderSlip } from '../components/PrintableOrderSlip';
+import { AdminPinModal } from '../components/AdminPinModal';
 
 interface OrdersViewProps {
   userRole: UserRole;
@@ -57,6 +60,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Admin PIN & Deletion State
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pinActionTitle, setPinActionTitle] = useState('');
+  const [pinActionDesc, setPinActionDesc] = useState('');
+  const [pinWarningText, setPinWarningText] = useState('');
+
   // Create Order Form State
   const [formPartyId, setFormPartyId] = useState('');
   const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -90,7 +100,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [isSubmittingQuickProduct, setIsSubmittingQuickProduct] = useState(false);
 
   // Fetch orders
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const [ordRes, partiesRes, prodRes] = await Promise.all([
@@ -113,11 +123,11 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, partyFilter, statusFilter, paymentStatusFilter, dateFrom, dateTo, onShowToast]);
 
   useEffect(() => {
     fetchOrders();
-  }, [partyFilter, statusFilter, paymentStatusFilter, dateFrom, dateTo]);
+  }, [fetchOrders]);
 
   // Handle selected order from search
   useEffect(() => {
@@ -129,7 +139,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         .catch(err => onShowToast('error', 'Error loading order', err.message));
       if (onClearSelectedOrder) onClearSelectedOrder();
     }
-  }, [selectedOrderId]);
+  }, [selectedOrderId, onClearSelectedOrder, onShowToast]);
 
   // Selected party details in form
   const selectedFormParty = parties.find(p => p.id === formPartyId);
@@ -450,6 +460,74 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     }
   };
 
+  const requestAdminPin = (title: string, desc: string, warning: string, action: () => void) => {
+    setPinActionTitle(title);
+    setPinActionDesc(desc);
+    setPinWarningText(warning);
+    setPendingAction(() => action);
+    setPinModalOpen(true);
+  };
+
+  // Delete Order with Admin PIN Verification
+  const handleDeleteOrder = (order: SalesOrder) => {
+    requestAdminPin(
+      `Delete Order #${order.id}`,
+      `Permanently delete sales order for ${order.party_name} (₹${(order.final_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })})`,
+      `Financial Integrity Notice: Deleting this invoice reverses product stock allocations, releases any payment allocations back to party available credit, and removes the debit entry from the accounting ledger. This action cannot be undone.`,
+      async () => {
+        try {
+          await api.deleteOrder(order.id, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          onShowToast('success', 'Order Deleted', `Order #${order.id} was permanently deleted and ledgers restored.`);
+          if (activeOrderDetails?.id === order.id) {
+            setActiveOrderDetails(null);
+          }
+          fetchOrders();
+        } catch (err: any) {
+          onShowToast('error', 'Delete Failed', err.message);
+        }
+      }
+    );
+  };
+
+  // Quick Direct Local SMS
+  const handleDirectLocalSms = async (order: SalesOrder) => {
+    let bal = (order as any).party_current_balance;
+    if (bal === undefined && order.party_id) {
+      try {
+        const partyRes: any = await api.getParty(order.party_id);
+        bal = partyRes?.data?.outstanding_balance ?? partyRes?.outstanding_balance;
+      } catch {
+        // continue
+      }
+    }
+    const cleanPhone = (order.party_phone || '').replace(/[^0-9]/g, '');
+    const business = businessSettings?.business_name || 'Barakkath Agencies';
+    const partyName = order.party_name || 'Valued Customer';
+    const date = order.order_date || new Date().toISOString().split('T')[0];
+    const mode = order.payment_method || (order.payment_status === 'paid' ? 'Paid' : 'Credit / Pending');
+    const amt = (Number(order.final_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const balText = bal !== undefined ? `\nOutstanding Bal: Rs. ${Number(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '';
+
+    const smsBody = (
+      `ORDER INVOICE - ${business}\n` +
+      `Invoice No: ${order.id}\n` +
+      `Party: ${partyName}\n` +
+      `Date: ${date}\n` +
+      `Payment Mode: ${mode}\n` +
+      `Bill Amount: Rs. ${amt}${balText}\n` +
+      `Thank you for your order!`
+    );
+
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const separator = isIOS ? '&' : '?';
+    const smsUrl = cleanPhone
+      ? `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsBody)}`
+      : `sms:${separator}body=${encodeURIComponent(smsBody)}`;
+
+    window.location.href = smsUrl;
+    onShowToast('info', 'Device SMS Opened', `Prefilled SMS for Order #${order.id} ready in your messaging app.`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -602,33 +680,48 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
                   <button
                     onClick={() => {
                       api.getOrder(ord.id).then(r => setActiveOrderDetails(r.data));
                     }}
-                    className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
                   >
                     <FileText className="w-3.5 h-3.5 text-slate-500" />
                     <span>Details</span>
                   </button>
                   <button
+                    onClick={() => handleDirectLocalSms(ord)}
+                    className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    title="Send Local SMS Receipt"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                    <span>SMS</span>
+                  </button>
+                  <button
                     onClick={() => {
                       api.getOrder(ord.id).then(r => setPrintOrder(r.data));
                     }}
-                    className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                    className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
                     title="Invoice Slip / Share"
                   >
                     <Printer className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Slip / Share</span>
+                    <span>Slip</span>
                   </button>
                   <button
                     onClick={() => handleRepeatOrder(ord.id)}
-                    className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors min-h-[40px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    className="py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
                     title="Repeat this Order"
                   >
                     <Copy className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Repeat</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOrder(ord)}
+                    className="py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    title="Delete Order (Admin PIN Required)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                   </button>
                 </div>
               </div>
@@ -717,6 +810,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                           Details
                         </button>
                         <button
+                          onClick={() => handleDirectLocalSms(ord)}
+                          className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                          title="Send Local SMS Receipt via Device App"
+                        >
+                          <Smartphone className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => {
                             api.getOrder(ord.id).then(r => setPrintOrder(r.data));
                           }}
@@ -731,6 +831,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                           title="Repeat this Order"
                         >
                           <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOrder(ord)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="Delete Order (Admin PIN Required)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -1250,17 +1357,24 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleDirectLocalSms(activeOrderDetails)}
+                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded text-xs font-semibold flex items-center gap-1.5 border border-amber-200 cursor-pointer active:scale-95"
+                    title="Send Local SMS Invoice via Device App"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" /> Local SMS
+                  </button>
                   <button
                     onClick={() => setPrintOrder(activeOrderDetails)}
-                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold flex items-center gap-1.5 border border-indigo-200"
+                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold flex items-center gap-1.5 border border-indigo-200 cursor-pointer active:scale-95"
                   >
                     <Printer className="w-3.5 h-3.5" /> Print Order Slip
                   </button>
                   <button
                     onClick={() => handleRepeatOrder(activeOrderDetails.id)}
-                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-xs font-semibold flex items-center gap-1.5 border border-emerald-200"
+                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-xs font-semibold flex items-center gap-1.5 border border-emerald-200 cursor-pointer active:scale-95"
                   >
                     <Copy className="w-3.5 h-3.5" /> Repeat Order
                   </button>
@@ -1270,7 +1384,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   {activeOrderDetails.status === 'draft' && (
                     <button
                       onClick={() => handleConfirmDraft(activeOrderDetails.id)}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold cursor-pointer active:scale-95"
                     >
                       Confirm Order
                     </button>
@@ -1278,11 +1392,18 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   {activeOrderDetails.status !== 'cancelled' && (
                     <button
                       onClick={() => setCancelModalOrder(activeOrderDetails)}
-                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded text-xs font-semibold border border-rose-200"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold border border-slate-300 cursor-pointer active:scale-95"
                     >
                       Cancel Order
                     </button>
                   )}
+                  <button
+                    onClick={() => handleDeleteOrder(activeOrderDetails)}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold flex items-center gap-1 cursor-pointer active:scale-95"
+                    title="Delete Order (Admin PIN Required)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Order
+                  </button>
                 </div>
               </div>
             </div>
@@ -1593,6 +1714,26 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           onShowToast={onShowToast}
         />
       )}
+
+      {/* Admin PIN Verification Modal for Sensitive Actions */}
+      <AdminPinModal
+        isOpen={pinModalOpen}
+        onClose={() => {
+          setPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={() => {
+          if (pendingAction) {
+            pendingAction();
+          }
+        }}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
+        warningText={pinWarningText}
+        expectedPin={businessSettings?.admin_pin || '1977'}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Party, Product, SalesOrder, Payment, BusinessSettings, AuditLog } from './types';
+import type { Party, Product, BusinessSettings, AuditLog } from './types';
 
 function getClient() {
   if (!supabase) throw new Error('Supabase client is not initialized.');
@@ -215,6 +215,49 @@ export const supabaseApi = {
     return { success: true, message: 'Party updated successfully' };
   },
 
+  deleteParty: async (id: string, userName: string = 'Admin') => {
+    const sb = getClient();
+    const { data: party, error: pErr } = await sb.from('parties').select('*').eq('id', id).single();
+    if (pErr) throw new Error(pErr.message);
+
+    // Delete payment allocations
+    await sb.from('payment_allocations').delete().eq('party_id', id);
+
+    // Delete order line items for all orders of this party
+    const { data: ords } = await sb.from('sales_orders').select('id').eq('party_id', id);
+    if (ords && ords.length > 0) {
+      for (const o of ords) {
+        await sb.from('order_items').delete().eq('order_id', o.id);
+      }
+    }
+
+    // Delete payments
+    await sb.from('payments').delete().eq('party_id', id);
+
+    // Delete sales orders
+    await sb.from('sales_orders').delete().eq('party_id', id);
+
+    // Delete party ledger entries
+    await sb.from('party_ledger').delete().eq('party_id', id);
+
+    // Delete follow-up reminders
+    await sb.from('follow_up_notes').delete().eq('party_id', id);
+
+    // Delete party record
+    const { error: delErr } = await sb.from('parties').delete().eq('id', id);
+    if (delErr) throw new Error(delErr.message);
+
+    await sb.from('audit_logs').insert({
+      entity_type: 'PARTY',
+      entity_id: id,
+      action: 'DELETE',
+      details: `Deleted party ${party.name} (${id}) and all associated transaction records`,
+      performed_by: userName || 'Admin'
+    });
+
+    return { success: true, message: `Party "${party.name}" deleted successfully.` };
+  },
+
   getPartyStatement: async (id: string, params?: { startDate?: string; endDate?: string }) => {
     const sb = getClient();
     const { data: party, error: pErr } = await sb.from('parties').select('*').eq('id', id).single();
@@ -364,6 +407,39 @@ export const supabaseApi = {
     });
 
     return { success: true, message: 'Product updated successfully' };
+  },
+
+  deleteProduct: async (id: string, userName: string = 'Admin') => {
+    const sb = getClient();
+    const { data: prod, error: pErr } = await sb.from('products').select('*').eq('id', id).single();
+    if (pErr) throw new Error(pErr.message);
+
+    // Check if referenced in historical order items
+    const { count } = await sb.from('order_items').select('*', { count: 'exact', head: true }).eq('product_id', id);
+    if (count && count > 0) {
+      await sb.from('products').update({ status: 'inactive' }).eq('id', id);
+      await sb.from('audit_logs').insert({
+        entity_type: 'PRODUCT',
+        entity_id: id,
+        action: 'DEACTIVATE',
+        details: `Product ${prod.name} (${id}) marked inactive as it exists in historical orders`,
+        performed_by: userName || 'Admin'
+      });
+      return { success: true, message: `Product "${prod.name}" has order history, so it was archived (marked inactive).` };
+    }
+
+    const { error: delErr } = await sb.from('products').delete().eq('id', id);
+    if (delErr) throw new Error(delErr.message);
+
+    await sb.from('audit_logs').insert({
+      entity_type: 'PRODUCT',
+      entity_id: id,
+      action: 'DELETE',
+      details: `Deleted product ${prod.name} (${id})`,
+      performed_by: userName || 'Admin'
+    });
+
+    return { success: true, message: `Product "${prod.name}" deleted successfully.` };
   },
 
   previewImportProducts: async (rows: any[]) => {
@@ -716,6 +792,62 @@ export const supabaseApi = {
     return { success: true, message: 'Order cancelled successfully' };
   },
 
+  deleteOrder: async (id: string, userName: string = 'Admin') => {
+    const sb = getClient();
+    const { data: order, error: oErr } = await sb.from('sales_orders').select('*').eq('id', id).single();
+    if (oErr) throw new Error(oErr.message);
+
+    // 1. Rollback payment allocations
+    const { data: allocs } = await sb.from('payment_allocations').select('*').eq('order_id', id);
+    if (allocs && allocs.length > 0) {
+      for (const al of allocs) {
+        const { data: pay } = await sb.from('payments').select('allocated_amount, unallocated_amount').eq('id', al.payment_id).single();
+        if (pay) {
+          await sb.from('payments').update({
+            unallocated_amount: Number(pay.unallocated_amount) + Number(al.allocated_amount),
+            allocated_amount: Math.max(0, Number(pay.allocated_amount) - Number(al.allocated_amount))
+          }).eq('id', al.payment_id);
+        }
+      }
+      await sb.from('payment_allocations').delete().eq('order_id', id);
+    }
+
+    // 2. Restore inventory stock if confirmed
+    if (order.status === 'confirmed') {
+      const { data: items } = await sb.from('order_items').select('product_id, quantity').eq('order_id', id);
+      if (items && items.length > 0) {
+        for (const item of items) {
+          const { data: prod } = await sb.from('products').select('stock_quantity').eq('id', item.product_id).single();
+          if (prod) {
+            await sb.from('products').update({
+              stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity)
+            }).eq('id', item.product_id);
+          }
+        }
+      }
+    }
+
+    // 3. Delete party ledger entries
+    await sb.from('party_ledger').delete().eq('reference_id', id);
+
+    // 4. Delete order items
+    await sb.from('order_items').delete().eq('order_id', id);
+
+    // 5. Delete order record
+    const { error: delErr } = await sb.from('sales_orders').delete().eq('id', id);
+    if (delErr) throw new Error(delErr.message);
+
+    await sb.from('audit_logs').insert({
+      entity_type: 'ORDER',
+      entity_id: id,
+      action: 'DELETE',
+      details: `Deleted order ${id} for party ${order.party_id} (Total: ₹${order.final_amount})`,
+      performed_by: userName || 'Admin'
+    });
+
+    return { success: true, message: `Order ${id} deleted successfully.` };
+  },
+
   // Payments
   getPaymentsStats: async () => {
     const sb = getClient();
@@ -929,7 +1061,7 @@ export const supabaseApi = {
     };
   },
 
-  allocatePayment: async (id: string, allocations: any[], userName: string) => {
+  allocatePayment: async (id: string, allocations: any[], _userName?: string) => {
     const sb = getClient();
     let totalAlloc = 0;
     for (const al of allocations) {
@@ -1020,6 +1152,46 @@ export const supabaseApi = {
     });
 
     return { success: true, message: 'Payment reversed successfully', party_new_balance: 0 };
+  },
+
+  deletePayment: async (id: string, userName: string = 'Admin') => {
+    const sb = getClient();
+    const { data: pay, error: pErr } = await sb.from('payments').select('*').eq('id', id).single();
+    if (pErr) throw new Error(pErr.message);
+
+    // 1. Rollback allocations to orders: subtract allocated amount from sales orders & update status
+    const { data: allocs } = await sb.from('payment_allocations').select('*').eq('payment_id', id);
+    if (allocs && allocs.length > 0) {
+      for (const al of allocs) {
+        const { data: ord } = await sb.from('sales_orders').select('allocated_amount, final_amount').eq('id', al.order_id).single();
+        if (ord) {
+          const newAlloc = Math.max(0, (Number(ord.allocated_amount) || 0) - Number(al.allocated_amount || 0));
+          const newStatus = newAlloc <= 0.01 ? 'unpaid' : 'partially_paid';
+          await sb.from('sales_orders').update({
+            allocated_amount: newAlloc,
+            payment_status: newStatus
+          }).eq('id', al.order_id);
+        }
+      }
+      await sb.from('payment_allocations').delete().eq('payment_id', id);
+    }
+
+    // 2. Remove ledger entries for this payment
+    await sb.from('party_ledger').delete().eq('reference_id', id);
+
+    // 3. Delete payment record
+    const { error: delErr } = await sb.from('payments').delete().eq('id', id);
+    if (delErr) throw new Error(delErr.message);
+
+    await sb.from('audit_logs').insert({
+      entity_type: 'PAYMENT',
+      entity_id: id,
+      action: 'DELETE',
+      details: `Deleted payment ${id} for party ${pay.party_id} (Amount: ₹${pay.amount})`,
+      performed_by: userName || 'Admin'
+    });
+
+    return { success: true, message: `Payment ${id} deleted successfully.`, party_new_balance: 0 };
   },
 
   // Outstanding Balances
@@ -1346,7 +1518,7 @@ export const supabaseApi = {
     return { success: true, data: Object.values(grouped).sort((a: any, b: any) => b.total_amount - a.total_amount) };
   },
 
-  getReportOrdersByProduct: async (params?: { startDate?: string; endDate?: string }) => {
+  getReportOrdersByProduct: async (_params?: { startDate?: string; endDate?: string }) => {
     const sb = getClient();
     const { data } = await sb.from('order_items').select('product_id, product_sku, product_name, unit, unit_price, quantity, line_total');
     const grouped: Record<string, any> = {};
@@ -1440,6 +1612,19 @@ export const supabaseApi = {
     return { success: true, data: logs };
   },
 
+  purgeAuditLogs: async (userName: string = 'Admin') => {
+    const sb = getClient();
+    await sb.from('audit_logs').delete().neq('id', 0);
+    await sb.from('audit_logs').insert({
+      entity_type: 'SETTINGS',
+      entity_id: 'AUDIT_PURGE',
+      action: 'PURGE',
+      details: 'Audit trail history was purged by authorized Admin',
+      performed_by: userName
+    });
+    return { success: true, message: 'Audit logs purged successfully' };
+  },
+
   // SMS Automation
   getSmsSettings: async () => {
     try {
@@ -1485,6 +1670,18 @@ export const supabaseApi = {
       if (res.ok) return await res.json();
     } catch {}
     return { success: true, data: [] };
+  },
+
+  clearSmsLogs: async (userName: string = 'Admin') => {
+    try {
+      const res = await fetch('/api/sms/logs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_name: userName })
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return { success: true, message: 'SMS logs cleared' };
   },
 
   sendTestSms: async (recipient: string, userName: string) => {

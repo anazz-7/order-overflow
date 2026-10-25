@@ -363,4 +363,33 @@ router.get('/export/:format', (req, res) => {
   }
 });
 
+// DELETE product with historical integrity guard
+router.delete('/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_name = 'Admin' } = req.body || {};
+
+    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found.' });
+    }
+
+    const orderCount = db.prepare('SELECT COUNT(*) as c FROM order_items WHERE product_id = ?').get(id).c;
+    if (orderCount > 0) {
+      db.prepare("UPDATE products SET status = 'inactive', updated_at = datetime('now', 'localtime') WHERE id = ?").run(id);
+      recordAuditLog('PRODUCT', id, 'DEACTIVATE', `Product ${product.name} (${id}) marked inactive as it is used in ${orderCount} order lines`, user_name);
+      return res.json({ success: true, message: `Product "${product.name}" is used in historical orders and has been safely marked inactive.` });
+    }
+
+    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    recordAuditLog('PRODUCT', id, 'DELETE', `Deleted product ${product.name} (${id})`, user_name);
+
+    res.json({ success: true, message: `Product "${product.name}" deleted successfully.` });
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
+

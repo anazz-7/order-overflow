@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Printer, X, FileText, MessageSquare, Share2, Check, Copy } from 'lucide-react';
+import { Printer, X, FileText, MessageSquare, Share2, Check, Smartphone } from 'lucide-react';
 import { SalesOrder } from '../types';
+import { api } from '../api';
 
 interface PrintableOrderSlipProps {
   order: SalesOrder;
@@ -16,6 +17,22 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
   onShowToast
 }) => {
   const [copied, setCopied] = useState(false);
+  const [currentBalance, setCurrentBalance] = useState<number | undefined>((order as any).party_current_balance);
+
+  // Fetch party current outstanding balance if not available
+  useEffect(() => {
+    if (order.party_id && currentBalance === undefined) {
+      api.getParty(order.party_id)
+        .then((res: any) => {
+          if (res && res.data && res.data.outstanding_balance !== undefined) {
+            setCurrentBalance(Number(res.data.outstanding_balance) || 0);
+          } else if (res && res.outstanding_balance !== undefined) {
+            setCurrentBalance(Number(res.outstanding_balance) || 0);
+          }
+        })
+        .catch(err => console.warn('Could not load party balance for order SMS:', err));
+    }
+  }, [order.party_id, currentBalance]);
 
   // Close on Escape key press
   useEffect(() => {
@@ -98,6 +115,40 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
     window.open(url, '_blank');
   };
 
+  const handleLocalSms = () => {
+    const partyPhone = order.party_phone || '';
+    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
+    const business = businessSettings?.business_name || 'Barakkath Agencies';
+    const partyName = order.party_name || 'Valued Customer';
+    const date = order.order_date || new Date().toISOString().split('T')[0];
+    const mode = order.payment_method || (order.payment_status === 'paid' ? 'Paid' : 'Credit / Pending');
+    const amt = (Number(order.final_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const balText = currentBalance !== undefined
+      ? `\nOutstanding Bal: Rs. ${currentBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '';
+
+    const smsBody = (
+      `ORDER INVOICE - ${business}\n` +
+      `Invoice No: ${order.id}\n` +
+      `Party: ${partyName}\n` +
+      `Date: ${date}\n` +
+      `Payment Mode: ${mode}\n` +
+      `Bill Amount: Rs. ${amt}${balText}\n` +
+      `Thank you for your order!`
+    );
+
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const separator = isIOS ? '&' : '?';
+    const smsUrl = cleanPhone
+      ? `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsBody)}`
+      : `sms:${separator}body=${encodeURIComponent(smsBody)}`;
+
+    window.location.href = smsUrl;
+    if (onShowToast) {
+      onShowToast('info', 'Device SMS Opened', 'Prefilled order invoice SMS ready to send in your messaging app.');
+    }
+  };
+
   const businessName = businessSettings?.business_name || 'Barakkath Agencies';
   const tagline = businessSettings?.tagline || 'Wholesale Sales & Party Management';
   const address = businessSettings?.address || '42, Big Bazaar Street, Wholesale Market, Coimbatore - 641001';
@@ -118,6 +169,14 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
             <span className="font-semibold text-xs sm:text-sm truncate">Sales Order #{order.id}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <button
+              onClick={handleLocalSms}
+              className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Send Local SMS via Device App"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Local SMS</span>
+            </button>
             <button
               onClick={handleWhatsAppShare}
               className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"

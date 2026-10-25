@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Package,
   Plus,
@@ -7,15 +7,13 @@ import {
   Download,
   Edit2,
   CheckCircle2,
-  AlertTriangle,
   FileSpreadsheet,
-  X,
-  Filter,
-  Layers
+  Trash2
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { api } from '../api';
 import { Product, UserRole } from '../types';
+import { AdminPinModal } from '../components/AdminPinModal';
 
 interface ProductsViewProps {
   userRole: UserRole;
@@ -46,8 +44,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  // Admin PIN & Sensitive Actions State
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pinActionTitle, setPinActionTitle] = useState('');
+  const [pinActionDesc, setPinActionDesc] = useState('');
+  const [pinWarningText, setPinWarningText] = useState('');
+
   // Import State
-  const [importRows, setImportRows] = useState<any[]>([]);
+  const [, setImportRows] = useState<any[]>([]);
   const [importPreview, setImportPreview] = useState<any | null>(null);
   const [isProcessingImport, setIsProcessingImport] = useState(false);
 
@@ -65,7 +70,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
@@ -83,14 +88,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, selectedCategory, statusFilter, onShowToast]);
 
   useEffect(() => {
     fetchProducts();
-  }, [selectedCategory, statusFilter]);
+  }, [fetchProducts]);
 
   // Open Edit Product
-  const handleOpenEdit = (product: Product) => {
+  const handleOpenEdit = useCallback((product: Product) => {
     setEditingProduct(product);
     setFormData({
       sku: product.sku,
@@ -104,7 +109,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       stock_quantity: String(product.stock_quantity)
     });
     setIsAddModalOpen(true);
-  };
+  }, []);
+
+  // Handle selected product from search or parent
+  useEffect(() => {
+    if (selectedProductId) {
+      const prod = products.find(p => p.id === selectedProductId || p.sku === selectedProductId);
+      if (prod) {
+        handleOpenEdit(prod);
+      }
+      if (onClearSelectedProduct) onClearSelectedProduct();
+    }
+  }, [selectedProductId, products, onClearSelectedProduct, handleOpenEdit]);
 
   // Submit Add or Edit
   const handleSubmitProduct = async (e: React.FormEvent) => {
@@ -228,6 +244,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       xlsx.writeFile(workbook, `${filename}.xlsx`, { bookType: 'xlsx' });
     }
     onShowToast('success', 'Catalog Exported', `Downloaded product catalog as ${format.toUpperCase()}.`);
+  };
+
+  const requestAdminPin = (title: string, desc: string, warning: string, action: () => void) => {
+    setPinActionTitle(title);
+    setPinActionDesc(desc);
+    setPinWarningText(warning);
+    setPendingAction(() => action);
+    setPinModalOpen(true);
+  };
+
+  // Delete Product with Admin PIN
+  const handleDeleteProduct = (product: Product) => {
+    requestAdminPin(
+      `Delete Product: ${product.name}`,
+      `Permanently delete or deactivate product SKU ${product.sku} from catalog.`,
+      `Financial Integrity Notice: If this product has historical sales order lines, it will be safely deactivated (marked inactive) to preserve historical accounting and order slips. If unused, it will be permanently removed.`,
+      async () => {
+        try {
+          const res = await api.deleteProduct(product.id, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          onShowToast('success', 'Catalog Updated', res.message || `Product ${product.name} deleted.`);
+          if (editingProduct?.id === product.id) {
+            setIsAddModalOpen(false);
+            setEditingProduct(null);
+          }
+          fetchProducts();
+        } catch (err: any) {
+          onShowToast('error', 'Delete Failed', err.message);
+        }
+      }
+    );
   };
 
   return (
@@ -388,13 +434,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => handleOpenEdit(prod)}
-                        className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                        title="Edit Product"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleOpenEdit(prod)}
+                          className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
+                          title="Edit Product"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(prod)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="Delete Product (Admin PIN Required)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -520,21 +575,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 Note: Updating product prices will not alter past sales orders. Historical order item prices are permanently preserved as immutable snapshots.
               </p>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-xs"
-                >
-                  {isSubmitting ? 'Saving...' : editingProduct ? 'Save Changes' : 'Add Product'}
-                </button>
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-center gap-2">
+                <div>
+                  {editingProduct && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteProduct(editingProduct)}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      title="Delete Product (Admin PIN Required)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      Delete Product
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-xs cursor-pointer"
+                  >
+                    {isSubmitting ? 'Saving...' : editingProduct ? 'Save Changes' : 'Add Product'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -660,6 +730,25 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
         </div>
       )}
+      {/* Admin PIN Verification Modal for Sensitive Actions */}
+      <AdminPinModal
+        isOpen={pinModalOpen}
+        onClose={() => {
+          setPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={() => {
+          if (pendingAction) {
+            pendingAction();
+          }
+        }}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
+        warningText={pinWarningText}
+        expectedPin={businessSettings?.admin_pin || '1977'}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+

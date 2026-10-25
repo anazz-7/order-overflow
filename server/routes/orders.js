@@ -502,4 +502,59 @@ router.post('/:id/cancel', (req, res) => {
   }
 });
 
+// DELETE order permanently with strict financial data integrity rollback
+router.delete('/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_name = 'Admin' } = req.body || {};
+
+    const order = db.prepare('SELECT * FROM sales_orders WHERE id = ?').get(id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    const deleteTx = db.transaction(() => {
+      // 1. Rollback any payment allocations linked to this order
+      const allocations = db.prepare('SELECT * FROM payment_allocations WHERE order_id = ?').all(id);
+      for (const al of allocations) {
+        db.prepare(`
+          UPDATE payments
+          SET unallocated_amount = unallocated_amount + ?,
+              allocated_amount = MAX(0, allocated_amount - ?)
+          WHERE id = ?
+        `).run(al.allocated_amount, al.allocated_amount, al.payment_id);
+      }
+      db.prepare('DELETE FROM payment_allocations WHERE order_id = ?').run(id);
+
+      // 2. If order was confirmed, restore inventory stock
+      if (order.status === 'confirmed') {
+        const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
+        const restoreStockStmt = db.prepare('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?');
+        for (const it of items) {
+          restoreStockStmt.run(it.quantity, it.product_id);
+        }
+      }
+
+      // 3. Remove party ledger entries for this order
+      db.prepare('DELETE FROM party_ledger WHERE reference_id = ?').run(id);
+
+      // 4. Delete order line items
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+
+      // 5. Delete order record
+      db.prepare('DELETE FROM sales_orders WHERE id = ?').run(id);
+
+      // 6. Audit log
+      recordAuditLog('ORDER', id, 'DELETE', `Deleted order ${id} for party ${order.party_id} (Total: ₹${order.final_amount})`, user_name);
+    });
+
+    deleteTx();
+    res.json({ success: true, message: `Order ${id} deleted successfully.` });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
+

@@ -36,4 +36,22 @@ router.get('/', (req, res) => {
   }
 });
 
+// DELETE purge audit logs
+router.delete('/', (req, res) => {
+  try {
+    const { user_name = 'Admin' } = req.body || {};
+    db.prepare(`DELETE FROM audit_logs`).run();
+    db.prepare(`INSERT INTO audit_logs (entity_type, entity_id, action, details, performed_by) VALUES (?, ?, ?, ?, ?)`).run(
+      'SETTINGS',
+      'AUDIT_PURGE',
+      'PURGE',
+      'Audit logs purged by admin',
+      user_name
+    );
+    res.json({ success: true, message: 'Audit logs purged successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

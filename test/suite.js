@@ -310,7 +310,8 @@ async function runTestSuite() {
 
   // 12. Party running statement sequential balance calculation
   test('12. Party statement sequential running balance verification', () => {
-    const partyId = 'PRT-001'; // Annamalai Provision Stores
+    const existing = db.prepare('SELECT party_id FROM party_ledger LIMIT 1').get();
+    const partyId = existing ? existing.party_id : testPartyId;
     const entries = db.prepare(`
       SELECT * FROM party_ledger WHERE party_id = ? ORDER BY entry_date ASC, id ASC
     `).all(partyId);

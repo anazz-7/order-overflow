@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Printer, X, CheckCircle2, MessageSquare, Share2, Check } from 'lucide-react';
+import { Printer, X, CheckCircle2, MessageSquare, Share2, Check, Smartphone } from 'lucide-react';
 import type { Payment } from '../types';
 
 interface PrintableReceiptProps {
@@ -36,6 +36,8 @@ export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
   const numAllocated = Number(payment.allocated_amount) || 0;
   const numUnallocated = Number(payment.unallocated_amount) || 0;
   const numCurrentBalance = payment.party_current_balance !== undefined ? Number(payment.party_current_balance) || 0 : undefined;
+
+  const [printedAt] = useState(() => new Date().toLocaleString());
 
   const getShareText = () => {
     const allocationsText = (payment.allocations && payment.allocations.length > 0)
@@ -100,6 +102,41 @@ export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
     window.open(url, '_blank');
   };
 
+  const handleLocalSms = () => {
+    const partyPhone = payment.party_phone || '';
+    const cleanPhone = partyPhone.replace(/[^0-9]/g, '');
+    const business = businessSettings?.business_name || 'Barakkath Agencies';
+    const partyName = payment.party_name || 'Valued Customer';
+    const date = payment.payment_date || new Date().toISOString().split('T')[0];
+    const mode = payment.payment_method || 'Cash';
+    const ref = payment.reference_no ? ` (${payment.reference_no})` : '';
+    const amt = numAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const balText = numCurrentBalance !== undefined
+      ? `\nOutstanding Bal: Rs. ${numCurrentBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '';
+
+    const smsBody = (
+      `PAYMENT RECEIPT - ${business}\n` +
+      `Receipt No: ${payment.id}\n` +
+      `Party: ${partyName}\n` +
+      `Date: ${date}\n` +
+      `Payment Mode: ${mode}${ref}\n` +
+      `Amount Received: Rs. ${amt}${balText}\n` +
+      `Thank you for your payment!`
+    );
+
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const separator = isIOS ? '&' : '?';
+    const smsUrl = cleanPhone
+      ? `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsBody)}`
+      : `sms:${separator}body=${encodeURIComponent(smsBody)}`;
+
+    window.location.href = smsUrl;
+    if (onShowToast) {
+      onShowToast('info', 'Device SMS Opened', 'Prefilled payment receipt SMS ready to send in your messaging app.');
+    }
+  };
+
   const businessName = businessSettings?.business_name || 'Barakkath Agencies';
   const tagline = businessSettings?.tagline || 'Wholesale Sales & Party Management';
   const address = businessSettings?.address || '42, Big Bazaar Street, Wholesale Market, Coimbatore - 641001';
@@ -121,6 +158,14 @@ export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
             <span className="font-semibold text-xs sm:text-sm truncate">Payment Receipt #{payment.id}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <button
+              onClick={handleLocalSms}
+              className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              title="Send Local SMS via Device App"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Local SMS</span>
+            </button>
             <button
               onClick={handleWhatsAppShare}
               className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
@@ -287,7 +332,7 @@ export const PrintableReceipt: React.FC<PrintableReceiptProps> = ({
           <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs text-slate-500">
             <div>
               <p className="italic">{receiptFooter}</p>
-              <p className="text-[10px] text-slate-400 mt-2">Generated via OrderFlow Pro System on {new Date().toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-2">Generated via OrderFlow Pro System on {printedAt}</p>
             </div>
             <div className="text-center w-48">
               <div className="border-b border-slate-300 pb-8 mb-1"></div>

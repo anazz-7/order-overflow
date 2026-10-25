@@ -66,6 +66,11 @@ const httpApi = {
       method: 'PUT',
       body: JSON.stringify({ ...partyData, user_name: userName })
     }),
+  deleteParty: (id: string, userName: string) =>
+    request<{ success: boolean; message: string }>(`/parties/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
+    }),
   getPartyStatement: (id: string, params?: { startDate?: string; endDate?: string }) => {
     const q = new URLSearchParams(params as any).toString();
     return request<{ success: boolean; data: any }>(`/parties/${id}/statement?${q}`);
@@ -89,6 +94,11 @@ const httpApi = {
     request<{ success: boolean; message: string }>(`/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify({ ...productData, user_name: userName })
+    }),
+  deleteProduct: (id: string, userName: string) =>
+    request<{ success: boolean; message: string }>(`/products/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
     }),
   previewImportProducts: (rows: any[]) =>
     request<{ success: boolean; summary: any; rows: any[] }>('/products/import-preview', {
@@ -123,6 +133,11 @@ const httpApi = {
       method: 'POST',
       body: JSON.stringify({ reason, user_name: userName })
     }),
+  deleteOrder: (id: string, userName: string) =>
+    request<{ success: boolean; message: string }>(`/orders/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
+    }),
 
   // Payments
   getPaymentsStats: () => request<{ success: boolean; data: any }>('/payments/stats'),
@@ -145,6 +160,11 @@ const httpApi = {
     request<{ success: boolean; message: string; party_new_balance: number }>(`/payments/${id}/reverse`, {
       method: 'POST',
       body: JSON.stringify({ reason, user_name: userName })
+    }),
+  deletePayment: (id: string, userName: string) =>
+    request<{ success: boolean; message: string; party_new_balance: number }>(`/payments/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
     }),
 
   // Outstanding Balances & Aging
@@ -192,6 +212,11 @@ const httpApi = {
     const q = new URLSearchParams(params as any).toString();
     return request<{ success: boolean; data: any[] }>(`/audit?${q}`);
   },
+  purgeAuditLogs: (userName: string = 'Admin') =>
+    request<{ success: boolean; message: string }>('/audit', {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
+    }),
 
   // SMS Automation
   getSmsSettings: () => request<{ success: boolean; data: any }>('/sms/settings'),
@@ -202,6 +227,11 @@ const httpApi = {
     }),
   getSmsLogs: (limit: number = 50) =>
     request<{ success: boolean; data: any[] }>(`/sms/logs?limit=${limit}`),
+  clearSmsLogs: (userName: string = 'Admin') =>
+    request<{ success: boolean; message: string }>('/sms/logs', {
+      method: 'DELETE',
+      body: JSON.stringify({ user_name: userName })
+    }),
   sendTestSms: (recipient: string, userName: string) =>
     request<{ success: boolean; result: any }>('/sms/test', {
       method: 'POST',

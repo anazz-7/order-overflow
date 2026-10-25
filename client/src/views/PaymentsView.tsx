@@ -1,24 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   CreditCard,
   Plus,
   Search,
-  Filter,
   Download,
   Printer,
   RotateCcw,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  Calendar,
   ShieldAlert,
-  Layers
+  Layers,
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import confetti from 'canvas-confetti';
 import { api } from '../api';
 import { Payment, Party, UserRole } from '../types';
 import { PrintableReceipt } from '../components/PrintableReceipt';
+import { AdminPinModal } from '../components/AdminPinModal';
 
 interface PaymentsViewProps {
   userRole: UserRole;
@@ -55,6 +53,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [reversalReason, setReversalReason] = useState('');
   const [isReversing, setIsReversing] = useState(false);
 
+  // Admin PIN & Sensitive Actions State
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pinActionTitle, setPinActionTitle] = useState('');
+  const [pinActionDesc, setPinActionDesc] = useState('');
+  const [pinWarningText, setPinWarningText] = useState('');
+
   // Allocate Credit Modal
   const [allocatingPayment, setAllocatingPayment] = useState<Payment | null>(null);
   const [unpaidOrdersForAlloc, setUnpaidOrdersForAlloc] = useState<any[]>([]);
@@ -74,7 +79,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [isSavingPayment, setIsSavingPayment] = useState(false);
 
   // Fetch initial data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [paysRes, statsRes, partiesRes] = await Promise.all([
@@ -98,11 +103,11 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, selectedPartyFilter, selectedMethodFilter, selectedStatusFilter, dateFrom, dateTo, onShowToast]);
 
   useEffect(() => {
     fetchData();
-  }, [selectedPartyFilter, selectedMethodFilter, selectedStatusFilter, dateFrom, dateTo]);
+  }, [fetchData]);
 
   // Handle selected payment from search
   useEffect(() => {
@@ -114,7 +119,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
         .catch(err => onShowToast('error', 'Error loading receipt', err.message));
       if (onClearSelectedPayment) onClearSelectedPayment();
     }
-  }, [selectedPaymentId]);
+  }, [selectedPaymentId, onClearSelectedPayment, onShowToast]);
 
   // When party changes in record form, fetch unpaid orders
   useEffect(() => {
@@ -207,7 +212,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       // Trigger celebratory confetti for successful payment collection!
       try {
         confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-      } catch (e) {}
+      } catch {}
 
       const receiptId = res.data?.receipt_id || res.data?.id || 'RECEIPT';
       onShowToast('success', 'Payment Recorded!', `Receipt #${receiptId} generated for ₹${numEnteredAmount.toLocaleString('en-IN')}`);
@@ -246,29 +251,109 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     setReversalReason('');
   };
 
-  // Confirm Reversal
-  const handleConfirmReversal = async () => {
+  const requestAdminPin = (title: string, desc: string, warning: string, action: () => void) => {
+    setPinActionTitle(title);
+    setPinActionDesc(desc);
+    setPinWarningText(warning);
+    setPendingAction(() => action);
+    setPinModalOpen(true);
+  };
+
+  // Confirm Reversal with Admin PIN
+  const handleConfirmReversal = () => {
     if (!reversalModalPayment) return;
     if (!reversalReason.trim()) {
       onShowToast('error', 'Reason required', 'A mandatory reason is required to reverse a posted payment.');
       return;
     }
 
-    setIsReversing(true);
-    try {
-      const res = await api.reversePayment(
-        reversalModalPayment.id,
-        reversalReason.trim(),
-        userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member'
-      );
-      onShowToast('warning', 'Payment Reversed', res.message);
-      setReversalModalPayment(null);
-      fetchData();
-    } catch (err: any) {
-      onShowToast('error', 'Reversal Failed', err.message);
-    } finally {
-      setIsReversing(false);
+    const payToReverse = reversalModalPayment;
+    const reasonToUse = reversalReason.trim();
+
+    requestAdminPin(
+      `Authorize Reversal #${payToReverse.id}`,
+      `Reverse payment of ₹${Number(payToReverse.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} for ${payToReverse.party_name}.`,
+      `Financial Integrity Notice: Reversing this payment releases order allocations, restores unpaid invoice balances, and creates a reversal debit entry in the accounting ledger.`,
+      async () => {
+        setIsReversing(true);
+        try {
+          const res = await api.reversePayment(
+            payToReverse.id,
+            reasonToUse,
+            userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member'
+          );
+          onShowToast('warning', 'Payment Reversed', res.message);
+          setReversalModalPayment(null);
+          setReversalReason('');
+          fetchData();
+        } catch (err: any) {
+          onShowToast('error', 'Reversal Failed', err.message);
+        } finally {
+          setIsReversing(false);
+        }
+      }
+    );
+  };
+
+  // Delete Payment with Admin PIN
+  const handleDeletePayment = (payment: Payment) => {
+    requestAdminPin(
+      `Delete Payment Receipt #${payment.id}`,
+      `Permanently delete payment receipt of ₹${Number(payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} for ${payment.party_name}.`,
+      `Financial Integrity Notice: Deleting this payment permanently deletes the credit ledger entry and rolls back any order allocations funded by this receipt (returning those orders to unpaid or partially paid balance). This action cannot be undone.`,
+      async () => {
+        try {
+          await api.deletePayment(payment.id, userRole === 'admin' ? 'Owner (Admin)' : 'Staff Member');
+          onShowToast('success', 'Payment Deleted', `Receipt #${payment.id} deleted and related balances restored.`);
+          if (activeReceiptPayment?.id === payment.id) {
+            setActiveReceiptPayment(null);
+          }
+          fetchData();
+        } catch (err: any) {
+          onShowToast('error', 'Delete Failed', err.message);
+        }
+      }
+    );
+  };
+
+  // Quick Direct Local SMS for Payments
+  const handleDirectLocalSms = async (payment: Payment) => {
+    let bal = payment.party_current_balance;
+    if (bal === undefined && payment.party_id) {
+      try {
+        const partyRes: any = await api.getParty(payment.party_id);
+        bal = partyRes?.data?.outstanding_balance ?? partyRes?.outstanding_balance;
+      } catch {
+        // continue
+      }
     }
+    const cleanPhone = (payment.party_phone || '').replace(/[^0-9]/g, '');
+    const business = businessSettings?.business_name || 'Barakkath Agencies';
+    const partyName = payment.party_name || 'Valued Customer';
+    const date = payment.payment_date || new Date().toISOString().split('T')[0];
+    const mode = payment.payment_method || 'Cash';
+    const ref = payment.reference_no ? ` (${payment.reference_no})` : '';
+    const amt = (Number(payment.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const balText = bal !== undefined ? `\nOutstanding Bal: Rs. ${Number(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '';
+
+    const smsBody = (
+      `PAYMENT RECEIPT - ${business}\n` +
+      `Receipt No: ${payment.id}\n` +
+      `Party: ${partyName}\n` +
+      `Date: ${date}\n` +
+      `Payment Mode: ${mode}${ref}\n` +
+      `Amount Received: Rs. ${amt}${balText}\n` +
+      `Thank you for your payment!`
+    );
+
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const separator = isIOS ? '&' : '?';
+    const smsUrl = cleanPhone
+      ? `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsBody)}`
+      : `sms:${separator}body=${encodeURIComponent(smsBody)}`;
+
+    window.location.href = smsUrl;
+    onShowToast('info', 'Device SMS Opened', `Prefilled SMS for Receipt #${payment.id} ready in your messaging app.`);
   };
 
   // Open Allocate Modal for unallocated funds
@@ -582,14 +667,22 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => handleDirectLocalSms(pay)}
+                    className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    title="Send Local SMS Receipt via Device App"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                    <span>SMS</span>
+                  </button>
                   <button
                     onClick={() => {
                       api.getPayment(pay.id)
                         .then(r => setActiveReceiptPayment(r.data || pay))
                         .catch(() => setActiveReceiptPayment(pay));
                     }}
-                    className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                    className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[36px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Printer className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Receipt</span>
@@ -597,7 +690,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   {pay.status === 'posted' && (pay.unallocated_amount || 0) > 0 && (
                     <button
                       onClick={() => handleOpenAllocateModal(pay)}
-                      className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      className="flex-1 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold text-center transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
                     >
                       <Layers className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Allocate</span>
@@ -606,13 +699,20 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   {pay.status === 'posted' && (
                     <button
                       onClick={() => handleOpenReverse(pay)}
-                      className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors min-h-[40px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
-                      title="Reverse Payment"
+                      className="py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                      title="Reverse Payment (Admin PIN Required)"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
                       <span>Reverse</span>
                     </button>
                   )}
+                  <button
+                    onClick={() => handleDeletePayment(pay)}
+                    className="py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors min-h-[36px] flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                    title="Delete Payment (Admin PIN Required)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  </button>
                 </div>
               </div>
             ))
@@ -695,12 +795,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
+                          onClick={() => handleDirectLocalSms(pay)}
+                          className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                          title="Send Local SMS Receipt via Device App"
+                        >
+                          <Smartphone className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => {
                             api.getPayment(pay.id)
                               .then(r => setActiveReceiptPayment(r.data || pay))
                               .catch(() => setActiveReceiptPayment(pay));
                           }}
-                          className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
                           title="Print / View Receipt"
                         >
                           <Printer className="w-4 h-4" />
@@ -708,7 +815,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                         {pay.status === 'posted' && pay.unallocated_amount > 0 && (
                           <button
                             onClick={() => handleOpenAllocateModal(pay)}
-                            className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                            className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
                             title="Allocate Available Credit to Orders"
                           >
                             <Layers className="w-4 h-4" />
@@ -717,12 +824,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                         {pay.status === 'posted' && (
                           <button
                             onClick={() => handleOpenReverse(pay)}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors"
-                            title="Reverse Payment"
+                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                            title="Reverse Payment (Admin PIN Required)"
                           >
                             <RotateCcw className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeletePayment(pay)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="Delete Payment (Admin PIN Required)"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1118,6 +1232,26 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           onShowToast={onShowToast}
         />
       )}
+
+      {/* Admin PIN Verification Modal for Sensitive Actions */}
+      <AdminPinModal
+        isOpen={pinModalOpen}
+        onClose={() => {
+          setPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={() => {
+          if (pendingAction) {
+            pendingAction();
+          }
+        }}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
+        warningText={pinWarningText}
+        expectedPin={businessSettings?.admin_pin || '1977'}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+
