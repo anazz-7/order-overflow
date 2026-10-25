@@ -816,10 +816,15 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
       {/* MODAL: SIMPLE, FAST RETURN / REFUND / EXCHANGE INTERFACE */}
       {/* ========================================================================= */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 bg-slate-900/80 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 pb-safe overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCreateModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-2 sm:my-3 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col animate-in fade-in zoom-in-95">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div
                   className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shadow-xs ${
@@ -856,7 +861,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmitReturn} className="p-4 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSubmitReturn} className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto overscroll-contain">
               {/* Top 3 Toggle Buttons: Return, Refund, Exchange */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">

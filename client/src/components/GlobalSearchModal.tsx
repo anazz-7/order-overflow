@@ -71,7 +71,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     results.parties.length + results.orders.length + results.products.length + results.payments.length;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-start justify-center pt-20 px-4">
+    <div 
+      className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-start justify-center pt-3 sm:pt-6 px-3 sm:px-4 pb-safe"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
         {/* Input Bar */}
         <div className="p-4 border-b border-slate-200 flex items-center gap-3">

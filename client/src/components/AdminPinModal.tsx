@@ -147,7 +147,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-70 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+      className="fixed inset-0 z-[90] overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
       onClick={e => {
         if (e.target === e.currentTarget && !isLocked) onClose();
       }}

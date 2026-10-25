@@ -134,33 +134,33 @@ export const PrintableReturnReceipt: React.FC<PrintableReturnReceiptProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:fixed-none">
+    <div className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-2 sm:p-4 pb-safe print:p-0 print:bg-white print:fixed-none print:inset-0 print:static print:z-auto print:overflow-visible">
       {/* Container card */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden print:shadow-none print:border-none print:max-w-none print:rounded-none">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-2 sm:my-3 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col print:shadow-none print:border-none print:max-w-none print:rounded-none print:max-h-none print:overflow-visible print:my-0">
         {/* Top Control Bar (Hidden when printing) */}
-        <div className="no-print bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-400">
-              <RotateCcw className="w-4 h-4" />
+        <div className="no-print bg-slate-900 text-white px-3 sm:px-6 py-3 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-400 shrink-0">
+              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                {typeTitle} Preview
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  A4 Print Format
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
+                <span>{typeTitle} Preview</span>
+                <span className="hidden sm:inline-block text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  A4
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400">Official voucher for store records & customer</p>
+              <p className="text-[10px] text-slate-400 truncate hidden xs:block">Official voucher for store records & customer</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={handlePrint}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Receipt</span>
+              <span className="hidden sm:inline">Print Receipt</span>
             </button>
 
             <button
@@ -187,7 +187,7 @@ export const PrintableReturnReceipt: React.FC<PrintableReturnReceiptProps> = ({
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
             </button>
 
-            <div className="h-4 w-px bg-slate-700 mx-1"></div>
+            <div className="h-4 w-px bg-slate-700 mx-0.5 sm:mx-1"></div>
 
             <button
               onClick={onClose}
@@ -198,8 +198,8 @@ export const PrintableReturnReceipt: React.FC<PrintableReturnReceiptProps> = ({
           </div>
         </div>
 
-        {/* Printable A4 Document Sheet */}
-        <div className="print-container p-6 sm:p-10 text-slate-900 bg-white">
+        {/* Printable A4 Document Sheet (Scrollable inside card) */}
+        <div className="print-container flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 md:p-10 text-slate-900 bg-white print:overflow-visible print:p-0">
           {/* Header Brand & Voucher Type */}
           <div className="border-b-2 border-slate-900 pb-5 mb-5 flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>

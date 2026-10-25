@@ -148,7 +148,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </select>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-600 font-medium">Period:</span>
               <input
                 type="date"

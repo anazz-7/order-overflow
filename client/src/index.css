@@ -3,9 +3,31 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased font-sans selection:bg-indigo-500 selection:text-white min-h-screen;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Prevent double-tap zoom delays and unintended mobile zoom gestures */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  label {
+    touch-action: manipulation;
   }
 
   /* Custom subtle scrollbar */

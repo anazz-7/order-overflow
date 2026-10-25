@@ -849,22 +849,27 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       {/* Record Payment Modal */}
       {isRecordModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-6">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsRecordModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-emerald-400" />
                 <h2 className="font-bold text-sm">Record Party Collection / Payment</h2>
               </div>
               <button
                 onClick={() => setIsRecordModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSavePayment} className="p-6 space-y-5 text-xs">
+            <form onSubmit={handleSavePayment} className="p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs flex-1 overflow-y-auto overscroll-contain">
               {/* Party Selection & Live Balance Display */}
               <div className="space-y-1">
                 <label className="font-semibold text-slate-700">Select Retail Party *</label>
@@ -1103,17 +1108,22 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       {/* Reverse Payment Modal */}
       {reversalModalPayment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-rose-200 overflow-hidden">
-            <div className="bg-rose-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReversalModalPayment(null);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-md w-full border border-rose-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-rose-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5 text-rose-300" />
                 <h3 className="font-bold text-sm">Reverse Payment Receipt #{reversalModalPayment.id}</h3>
               </div>
-              <button onClick={() => setReversalModalPayment(null)} className="text-rose-300 hover:text-white">✕</button>
+              <button onClick={() => setReversalModalPayment(null)} className="text-rose-300 hover:text-white p-1 rounded-lg hover:bg-rose-800 transition-colors cursor-pointer">✕</button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
               <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900">
                 <p className="font-semibold">Notice regarding financial reversal:</p>
                 <p className="text-[11px] mt-1 text-rose-800">
@@ -1157,17 +1167,22 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       {/* Allocate Remaining Unallocated Credit Modal */}
       {allocatingPayment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAllocatingPayment(null);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-indigo-400" />
                 <h3 className="font-bold text-sm">Allocate Credit from Receipt #{allocatingPayment.id}</h3>
               </div>
-              <button onClick={() => setAllocatingPayment(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setAllocatingPayment(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">✕</button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex justify-between items-center text-amber-900">
                 <span>Available Unallocated Credit:</span>
                 <span className="font-bold text-base">₹{allocatingPayment.unallocated_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>

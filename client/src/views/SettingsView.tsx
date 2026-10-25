@@ -1133,50 +1133,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 border-b border-slate-200/80 font-semibold text-slate-700">
-                <tr>
-                  <th className="py-2.5 px-4 w-36">Timestamp</th>
-                  <th className="py-2.5 px-4 w-28">Entity</th>
-                  <th className="py-2.5 px-4 w-32">Reference</th>
-                  <th className="py-2.5 px-4 w-28">Action</th>
-                  <th className="py-2.5 px-4">Audit Details / Reason</th>
-                  <th className="py-2.5 px-4 w-32">Performed By</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditLoading ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left min-w-[650px]">
+                <thead className="bg-slate-50 border-b border-slate-200/80 font-semibold text-slate-700">
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">Loading audit trail...</td>
+                    <th className="py-2.5 px-4 w-36">Timestamp</th>
+                    <th className="py-2.5 px-4 w-28">Entity</th>
+                    <th className="py-2.5 px-4 w-32">Reference</th>
+                    <th className="py-2.5 px-4 w-28">Action</th>
+                    <th className="py-2.5 px-4">Audit Details / Reason</th>
+                    <th className="py-2.5 px-4 w-32">Performed By</th>
                   </tr>
-                ) : auditLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">No audit records found.</td>
-                  </tr>
-                ) : (
-                  auditLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-slate-50/50">
-                      <td className="py-2 px-4 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
-                      <td className="py-2 px-4 font-semibold text-slate-800">{log.entity_type}</td>
-                      <td className="py-2 px-4 font-mono text-indigo-700 font-medium">{log.entity_id}</td>
-                      <td className="py-2 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          log.action.includes('REVERSE') || log.action.includes('CANCEL')
-                            ? 'bg-rose-100 text-rose-800'
-                            : log.action.includes('CONFIRM') || log.action.includes('RECORD')
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="py-2 px-4 text-slate-700">{log.details}</td>
-                      <td className="py-2 px-4 text-slate-600 font-medium">{log.performed_by}</td>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditLoading ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">Loading audit trail...</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">No audit records found.</td>
+                    </tr>
+                  ) : (
+                    auditLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-slate-50/50">
+                        <td className="py-2 px-4 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
+                        <td className="py-2 px-4 font-semibold text-slate-800">{log.entity_type}</td>
+                        <td className="py-2 px-4 font-mono text-indigo-700 font-medium">{log.entity_id}</td>
+                        <td className="py-2 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            log.action.includes('REVERSE') || log.action.includes('CANCEL')
+                              ? 'bg-rose-100 text-rose-800'
+                              : log.action.includes('CONFIRM') || log.action.includes('RECORD')
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="py-2 px-4 text-slate-700">{log.details}</td>
+                        <td className="py-2 px-4 text-slate-600 font-medium">{log.performed_by}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

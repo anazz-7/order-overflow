@@ -156,55 +156,59 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-2 sm:p-4 pb-safe print:p-0 print:bg-white print:fixed-none print:inset-0 print:static print:z-auto print:overflow-visible"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-4 sm:my-8 relative">
-        {/* Sticky Top Action Bar (hidden in print, stays pinned on scroll) */}
-        <div className="no-print sticky top-0 z-30 bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shadow-md">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-2 sm:my-3 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col print:shadow-none print:border-none print:max-w-none print:rounded-none print:max-h-none print:overflow-visible print:my-0">
+        {/* Pinned Top Action Bar (hidden in print, stays at top of modal card) */}
+        <div className="no-print bg-slate-900 text-white px-3 sm:px-6 py-3 flex items-center justify-between border-b border-slate-800 shadow-sm shrink-0">
           <div className="flex items-center gap-2 min-w-0 pr-2">
             <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 shrink-0" />
-            <span className="font-semibold text-xs sm:text-sm truncate">Sales Order #{order.id}</span>
+            <span className="font-semibold text-xs sm:text-sm truncate">Order #{order.id}</span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={handleLocalSms}
-              className="px-2.5 sm:px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              className="px-2 sm:px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
               title="Send Local SMS via Device App"
+              aria-label="Send SMS"
             >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Local SMS</span>
+              <Smartphone className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline">SMS</span>
             </button>
             <button
               onClick={handleWhatsAppShare}
-              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              className="px-2 sm:px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
               title="Share via WhatsApp"
+              aria-label="Share WhatsApp"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">WhatsApp</span>
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline">WhatsApp</span>
             </button>
             <button
               onClick={handleNativeShare}
-              className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              className="px-2 sm:px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
               title="Share or Copy Invoice Link/Summary"
+              aria-label="Share or Copy Invoice"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400" />}
-              <span>{copied ? 'Copied!' : 'Share'}</span>
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Share2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+              <span className="hidden sm:inline">{copied ? 'Copied!' : 'Share'}</span>
             </button>
             <button
               onClick={handlePrint}
-              className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+              className="px-2 sm:px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
               title="Print Order Slip (Ctrl+P)"
+              aria-label="Print Order Slip"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={onClose}
               aria-label="Close invoice preview"
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 ml-1"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 ml-0.5"
               title="Close Preview (Esc)"
             >
               <X className="w-5 h-5" />
@@ -212,25 +216,24 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
           </div>
         </div>
 
-
-        {/* Printable Order Container */}
-        <div id="order-print-area" className="p-8 sm:p-10 text-slate-900 bg-white">
+        {/* Printable Order Container (Scrollable inside card) */}
+        <div id="order-print-area" className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 md:p-10 text-slate-900 bg-white print:overflow-visible print:p-0">
           {/* Header */}
-          <div className="border-b border-slate-200 pb-6 mb-6">
-            <div className="flex justify-between items-start">
-              <div>
+          <div className="border-b border-slate-200 pb-5 sm:pb-6 mb-5 sm:mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-lg">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shrink-0">
                     B
                   </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-900">{businessName}</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">{businessName}</h1>
                 </div>
                 <p className="text-xs font-medium text-indigo-600 mt-1 uppercase tracking-wider">{tagline}</p>
-                <p className="text-xs text-slate-500 mt-1">{address}</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-md break-words">{address}</p>
                 <p className="text-xs text-slate-500">Phone: {phone}</p>
               </div>
-              <div className="text-right">
-                <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-xs font-semibold uppercase tracking-wider mb-2">
+              <div className="sm:text-right shrink-0">
+                <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-xs font-semibold uppercase tracking-wider mb-1.5">
                   Wholesale Order Slip
                 </span>
                 <p className="text-sm font-bold text-slate-900">Order Ref: {order.id}</p>
@@ -249,20 +252,20 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
           </div>
 
           {/* Customer / Party Info */}
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80 mb-6 text-xs">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80 mb-5 sm:mb-6 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <p className="font-semibold text-slate-500 uppercase tracking-wider text-[11px] mb-1">Billed To (Party):</p>
-                <p className="text-sm font-bold text-slate-900">{order.party_name}</p>
-                {order.party_contact_person && <p className="text-slate-600">Contact: {order.party_contact_person}</p>}
+                <p className="text-sm font-bold text-slate-900 truncate">{order.party_name}</p>
+                {order.party_contact_person && <p className="text-slate-600 mt-0.5 truncate">Contact: {order.party_contact_person}</p>}
                 <p className="text-slate-600">Phone: {order.party_phone}</p>
                 {order.party_area && <p className="text-slate-600">Area: {order.party_area}</p>}
-                {order.party_address && <p className="text-slate-500 mt-0.5">{order.party_address}</p>}
+                {order.party_address && <p className="text-slate-500 mt-0.5 break-words">{order.party_address}</p>}
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold text-slate-500 uppercase tracking-wider text-[11px] mb-1">Order Summary & Notes:</p>
                 <p className="text-slate-600">Created By: {order.created_by || 'Admin'}</p>
-                <p className="text-slate-600">
+                <p className="text-slate-600 mt-0.5">
                   Payment Status:{' '}
                   <span className={`font-semibold ${
                     order.payment_status === 'paid' ? 'text-emerald-700' :
@@ -271,49 +274,51 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
                     {order.payment_status.replace('_', ' ').toUpperCase()}
                   </span>
                 </p>
-                {order.notes && <p className="text-slate-500 mt-1 italic">"{order.notes}"</p>}
+                {order.notes && <p className="text-slate-500 mt-1 italic break-words">"{order.notes}"</p>}
               </div>
             </div>
           </div>
 
           {/* Items Table */}
-          <div className="mb-6">
-            <table className="w-full text-xs text-left border border-slate-200 rounded-lg overflow-hidden">
-              <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-2.5 px-3 w-10 text-center">#</th>
-                  <th className="py-2.5 px-3">Item Description</th>
-                  <th className="py-2.5 px-3 w-28">SKU</th>
-                  <th className="py-2.5 px-3 w-24 text-right">Unit Rate</th>
-                  <th className="py-2.5 px-3 w-20 text-center">Qty</th>
-                  <th className="py-2.5 px-3 w-28 text-right">Line Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {order.items && order.items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
-                    <td className="py-2 px-3 text-center text-slate-400">{idx + 1}</td>
-                    <td className="py-2 px-3 font-medium text-slate-900">
-                      {item.product_name}
-                      <span className="text-[11px] text-slate-400 block">{item.unit}</span>
-                    </td>
-                    <td className="py-2 px-3 font-mono text-slate-500">{item.product_sku}</td>
-                    <td className="py-2 px-3 text-right text-slate-600">
-                      ₹{item.unit_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-2 px-3 text-center font-semibold text-slate-900">{item.quantity}</td>
-                    <td className="py-2 px-3 text-right font-semibold text-slate-900">
-                      ₹{item.line_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
+          <div className="mb-5 sm:mb-6">
+            <div className="overflow-x-auto -mx-1 sm:mx-0 border border-slate-200 rounded-lg">
+              <table className="w-full text-xs text-left min-w-[500px] sm:min-w-full">
+                <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3 w-10 text-center">#</th>
+                    <th className="py-2.5 px-3">Item Description</th>
+                    <th className="py-2.5 px-3 w-28">SKU</th>
+                    <th className="py-2.5 px-3 w-24 text-right">Unit Rate</th>
+                    <th className="py-2.5 px-3 w-20 text-center">Qty</th>
+                    <th className="py-2.5 px-3 w-28 text-right">Line Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {order.items && order.items.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 text-center text-slate-400">{idx + 1}</td>
+                      <td className="py-2 px-3 font-medium text-slate-900">
+                        {item.product_name}
+                        <span className="text-[11px] text-slate-400 block">{item.unit}</span>
+                      </td>
+                      <td className="py-2 px-3 font-mono text-slate-500">{item.product_sku}</td>
+                      <td className="py-2 px-3 text-right text-slate-600">
+                        ₹{item.unit_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-2 px-3 text-center font-semibold text-slate-900">{item.quantity}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-slate-900">
+                        ₹{item.line_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Totals Section */}
-          <div className="flex justify-end mb-8">
-            <div className="w-72 bg-slate-50 p-4 rounded-lg border border-slate-200/80 text-xs space-y-2">
+          <div className="flex justify-end mb-6 sm:mb-8">
+            <div className="w-full sm:w-72 bg-slate-50 p-4 rounded-lg border border-slate-200/80 text-xs space-y-2">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal:</span>
                 <span>₹{order.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
@@ -340,14 +345,14 @@ export const PrintableOrderSlip: React.FC<PrintableOrderSlipProps> = ({
           </div>
 
           {/* Footer & Signatures */}
-          <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs text-slate-500">
-            <div>
+          <div className="pt-6 sm:pt-8 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 text-xs text-slate-500">
+            <div className="min-w-0">
               <p className="font-medium text-slate-700">Terms & Conditions:</p>
               <p className="text-[11px] text-slate-400 mt-1 max-w-sm">
                 Goods once sold will not be taken back without prior inspection. All payments to be made in favor of {businessName} within agreed terms.
               </p>
             </div>
-            <div className="text-center w-48">
+            <div className="text-left sm:text-center w-full sm:w-48 shrink-0">
               <div className="border-b border-slate-300 pb-8 mb-1"></div>
               <p className="font-semibold text-slate-700">For {businessName}</p>
               <p className="text-[11px] text-slate-400">Authorized Signatory</p>

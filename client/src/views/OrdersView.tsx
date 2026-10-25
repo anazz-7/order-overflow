@@ -852,14 +852,19 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
       {/* Create Order Modal / Drawer */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden my-6 max-h-[90vh] flex flex-col">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCreateModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-indigo-400" />
                 <h2 className="font-bold text-sm">Create Wholesale Sales Order</h2>
               </div>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">✕</button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-5 text-xs flex-1">
@@ -1287,17 +1292,22 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
       {/* Order Details Drawer / Modal */}
       {activeOrderDetails && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-6">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveOrderDetails(null);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-400" />
                 <h3 className="font-bold text-sm">Order #{activeOrderDetails.id}</h3>
               </div>
-              <button onClick={() => setActiveOrderDetails(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setActiveOrderDetails(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">✕</button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
               {/* Header Info */}
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
                 <div>
@@ -1413,17 +1423,22 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
       {/* Cancel Order Modal */}
       {cancelModalOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-rose-200 overflow-hidden">
-            <div className="bg-rose-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCancelModalOrder(null);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-md w-full border border-rose-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-rose-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-rose-300" />
                 <h3 className="font-bold text-sm">Cancel Order #{cancelModalOrder.id}</h3>
               </div>
-              <button onClick={() => setCancelModalOrder(null)} className="text-rose-300 hover:text-white">✕</button>
+              <button onClick={() => setCancelModalOrder(null)} className="text-rose-300 hover:text-white p-1 rounded-lg hover:bg-rose-800 transition-colors cursor-pointer">✕</button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
               <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900">
                 <p className="font-semibold">Cancellation Policy:</p>
                 <p className="text-[11px] mt-1 text-rose-800">
@@ -1465,11 +1480,16 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         </div>
       )}
 
-      {/* Quick Add Party Modal (z-60 on top of order modal) */}
+      {/* Quick Add Party Modal (z-[70] on top of order modal) */}
       {isQuickPartyOpen && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-[70] overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsQuickPartyOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
                   <UserPlus className="w-4 h-4 text-white" />
@@ -1585,11 +1605,16 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         </div>
       )}
 
-      {/* Quick Add Product Modal (z-60 on top of order modal) */}
+      {/* Quick Add Product Modal (z-[70] on top of order modal) */}
       {isQuickProductOpen && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-[70] overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsQuickProductOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
                   <PackagePlus className="w-4 h-4 text-white" />

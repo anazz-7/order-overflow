@@ -82,7 +82,7 @@ export const Layout: React.FC<LayoutProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row antialiased text-slate-900 font-sans">
       {/* Mobile Top App Bar Header (Stitch Spec with Status Bar Safe-Area Support) */}
-      <header className="md:hidden no-print fixed top-0 left-0 right-0 w-full z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] pt-safe">
+      <header className="md:hidden no-print fixed top-0 left-0 right-0 w-full z-[60] bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] pt-safe">
         <div className="h-14 sm:h-16 px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: Brand + Entity Information */}
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
@@ -139,9 +139,18 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </header>
 
+      {/* Mobile Drawer Backdrop Overlay */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close navigation drawer"
+          className="md:hidden fixed inset-0 z-[75] bg-slate-950/60 backdrop-blur-xs transition-opacity"
+        />
+      )}
+
       {/* Sidebar Navigation */}
       <aside
-        className={`no-print fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out md:translate-x-0 md:static ${
+        className={`no-print fixed inset-y-0 left-0 z-[80] w-64 bg-slate-950 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:z-auto ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -327,7 +336,7 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Desktop Top Header Bar matching Stitch */}
-        <header className="no-print hidden md:flex h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 items-center justify-between sticky top-0 z-30 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <header className="no-print hidden md:flex h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 items-center justify-between sticky top-0 z-[60] shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
           {/* Left: Brand / Section Identity */}
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
@@ -419,7 +428,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </main>
 
         {/* Mobile Fixed Bottom Navigation Tab Bar (Stitch Spec) */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] no-print pb-safe">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[50] bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] no-print pb-safe">
           <div className="flex items-center justify-around h-16 px-1 max-w-lg mx-auto">
             {/* Tab 1: Dashboard */}
             <button

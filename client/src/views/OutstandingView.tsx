@@ -388,17 +388,22 @@ export const OutstandingView: React.FC<OutstandingViewProps> = ({
 
       {/* Follow-up Reminder Modal */}
       {reminderParty && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <div 
+          className="fixed inset-x-0 bottom-0 top-14 sm:top-16 md:top-16 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-start justify-center p-3 sm:p-4 pb-safe"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReminderParty(null);
+          }}
+        >
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden my-2 sm:my-4 relative max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] flex flex-col">
+            <div className="bg-slate-900 text-white px-5 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <BellRing className="w-4 h-4 text-amber-400" />
                 <h3 className="font-bold text-sm">Collection Follow-up: {reminderParty.name}</h3>
               </div>
-              <button onClick={() => setReminderParty(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setReminderParty(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">✕</button>
             </div>
 
-            <form onSubmit={handleSaveReminder} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSaveReminder} className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
                 <p>Outstanding: <strong>₹{reminderParty.outstanding_balance.toLocaleString('en-IN')}</strong></p>
                 <p className="text-[11px] text-slate-500">Contact: {reminderParty.contact_person || reminderParty.phone}</p>
