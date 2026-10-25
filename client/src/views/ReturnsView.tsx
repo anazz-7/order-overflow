@@ -1352,8 +1352,8 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
       {/* Admin PIN Protection Modal for Sensitive Deletions */}
       <AdminPinModal
         isOpen={pinModalOpen}
-        title={pinActionTitle}
-        description={pinActionDesc}
+        actionTitle={pinActionTitle}
+        actionDescription={pinActionDesc}
         onClose={() => {
           setPinModalOpen(false);
           setPendingAction(null);

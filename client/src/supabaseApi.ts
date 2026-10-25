@@ -1788,8 +1788,10 @@ export const supabaseApi = {
     if (params?.party_id && params.party_id !== 'all') list = list.filter((r: any) => r.party_id === params.party_id);
     if (params?.type && params.type !== 'all') list = list.filter((r: any) => r.type === params.type);
     if (params?.order_id) list = list.filter((r: any) => r.order_id === params.order_id);
-    if (params?.date_from) list = list.filter((r: any) => r.return_date >= params.date_from);
-    if (params?.date_to) list = list.filter((r: any) => r.return_date <= params.date_to);
+    const dFrom = params?.date_from;
+    const dTo = params?.date_to;
+    if (dFrom) list = list.filter((r: any) => r.return_date >= dFrom);
+    if (dTo) list = list.filter((r: any) => r.return_date <= dTo);
     if (params?.search) {
       const s = params.search.toLowerCase();
       list = list.filter((r: any) =>

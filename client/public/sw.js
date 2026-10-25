@@ -3,7 +3,7 @@
  * Version: 1.0.0
  */
 
-const CACHE_NAME = 'orderflow-pro-v1';
+const CACHE_NAME = 'orderflow-pro-v2';
 const CORE_ASSETS = [
   '/',
   '/index.html',
